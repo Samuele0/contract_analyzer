@@ -6,7 +6,7 @@ pub mod contract_utils;
 pub mod evm_execution;
 pub mod evm_memory;
 pub mod evm_types;
-pub mod netbuilder;
+pub mod net;
 
 #[cfg(test)]
 mod tests {
