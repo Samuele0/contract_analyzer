@@ -4,13 +4,13 @@ use ethereum_types::U256;
 use std::collections::{HashMap, HashSet};
 
 pub struct ContractData {
-    constructor: ContractMethod,
-    methods: HashMap<U256, ContractMethod>,
+    pub constructor: ContractMethod,
+    pub methods: HashMap<U256, ContractMethod>,
 }
 pub struct ContractMethod {
-    storage_read: HashSet<DataType>,
-    storage_write: HashSet<DataType>,
-    method_call: HashSet<(StackValue, StackValue)>,
+    pub storage_read: HashSet<DataType>,
+    pub storage_write: HashSet<DataType>,
+    pub method_call: HashSet<(StackValue, StackValue)>,
 }
 
 impl ContractData {
