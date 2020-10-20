@@ -9,7 +9,7 @@ pub enum DataType {
     Field(StackValue),
     Struct(StackValue),
     Vector(StackValue),
-    Mapping(StackValue),
+    Mapping(StackValue, StackValue),
     Unknown(StackValue),
 }
 impl DataType {
@@ -19,7 +19,7 @@ impl DataType {
             DataType::Field(x) => x.clone(),
             DataType::Struct(x) => x.clone(),
             DataType::Vector(x) => x.clone(),
-            DataType::Mapping(x) => x.clone(),
+            DataType::Mapping(x, y) => x.clone(),
             DataType::Unknown(x) => x.clone(),
         }
     }
@@ -83,7 +83,7 @@ pub fn top_level_data(expr: &StackValue) -> DataType {
                 DataType::Unknown(x) => DataType::Unknown(Add(a.clone(), Box::from(x))),
                 DataType::Field(y) => DataType::Struct(y),
                 DataType::Struct(y) => DataType::Struct(y),
-                DataType::Mapping(y) => DataType::Mapping(y),
+                DataType::Mapping(x, y) => DataType::Mapping(x, y),
                 DataType::Vector(y) => DataType::Vector(y),
             };
             return ret;
@@ -96,10 +96,11 @@ pub fn top_level_data(expr: &StackValue) -> DataType {
             }
             if v.len() == 2 {
                 // Mapping
+                // TODO add reference to position
                 if v[0].0 > v[1].0 {
-                    return DataType::Mapping(expr.clone());
+                    return DataType::Mapping(v[0].1.clone(), expr.clone());
                 } else {
-                    return DataType::Mapping(expr.clone());
+                    return DataType::Mapping(v[1].1.clone(), expr.clone());
                 }
             } else {
                 return DataType::Unknown(expr.clone());
