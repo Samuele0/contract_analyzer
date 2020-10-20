@@ -32,17 +32,15 @@ pub fn analyze_contract(code: Vec<u8>) -> ContractData {
                     method.access_read(exe.storage_access_read);
                     method.access_write(exe.storage_access_write);
                     contract.set_constructor(method);
-                } else {
-                    if let CodeSection(x) = ret {
-                        // If the returned value is an effective section of code
-                        runtime_code = Some(Vec::from(x));
-                        let mut method = ContractMethod::new();
-                        // Add information about the constructor
-                        method.access_read(exe.storage_access_read);
-                        method.access_write(exe.storage_access_write);
-                        method.method_calls(exe.external_calls);
-                        contract.set_constructor(method);
-                    }
+                } else if let CodeSection(x) = ret {
+                    // If the returned value is an effective section of code
+                    runtime_code = Some(x);
+                    let mut method = ContractMethod::new();
+                    // Add information about the constructor
+                    method.access_read(exe.storage_access_read);
+                    method.access_write(exe.storage_access_write);
+                    method.method_calls(exe.external_calls);
+                    contract.set_constructor(method);
                 }
             }
         }
@@ -56,7 +54,7 @@ pub fn analyze_contract(code: Vec<u8>) -> ContractData {
             if let Some(hash) = get_pubblic_method(&exe) {
                 // If this execution belongs to a method
                 // Retrive or create the method and append information
-                let  method = contract.get_method(hash);
+                let method = contract.get_method(hash);
                 method.access_read(exe.storage_access_read);
                 method.access_write(exe.storage_access_write);
                 method.method_calls(exe.external_calls);
@@ -66,5 +64,5 @@ pub fn analyze_contract(code: Vec<u8>) -> ContractData {
     }
     // Display the contract
     contract.display();
-    return contract;
+    contract
 }

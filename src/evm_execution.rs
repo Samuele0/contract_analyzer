@@ -562,7 +562,7 @@ impl<'a> EvmExecution<'a> {
         other.pc = address;
         other.function_stack.push(address);
         other.jumped = true;
-        other.guards.push(condition.clone());
+        other.guards.push(condition);
         self.execution_list.push_back(other);
     }
     pub fn pc(&mut self) {
@@ -627,7 +627,7 @@ impl<'a> EvmExecution<'a> {
         let op7 = self.stack.pop();
         let mem_value = self.memory.retrive(offset.clone(), mem_length.clone());
         self.external_calls
-            .insert((address.clone(), mem_value.clone().unwrap()));
+            .insert((address.clone(), mem_value.unwrap()));
         self.stack.push(Call(
             Box::from(op1),
             Box::from(address),

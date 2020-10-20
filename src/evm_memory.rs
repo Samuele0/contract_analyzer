@@ -33,7 +33,7 @@ impl EvmMemory {
                 return Some(el.1.clone());
             }
         }
-        return Some(StackValue::ActualValue(U256::from(0)));
+        Some(StackValue::ActualValue(U256::from(0)))
     }
     /// Attempt to retrive more than one consecutive memory position; this is only possible if the memory offsets and lengths can be resolved as U256
     pub fn retrive_array(&self, offset: U256, length: U256) -> Vec<(usize, StackValue)> {
@@ -54,7 +54,7 @@ impl EvmMemory {
                 vector.push((pos.as_usize(), el.1.clone()));
             }
         }
-        return vector;
+        vector
     }
     pub fn print_memory(&self) {
         /*print!("\x1b[0;31mMEMORY:",);
@@ -98,15 +98,13 @@ impl fmt::Display for EvmStack {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let c1 = "\x1b[0;32m";
         let c2 = "\x1b[0;37m";
-        let mut counter = 0;
         let mut buffer = String::new();
-        for item in &self.stack {
+        for (counter, item) in self.stack.iter().enumerate() {
             if counter % 2 == 0 {
                 buffer += &format!("{}{:?}//", c1, item)[..];
             } else {
                 buffer += &format!("{}{:?}//", c2, item)[..];
             }
-            counter += 1;
         }
         write!(f, "{}", buffer)
     }

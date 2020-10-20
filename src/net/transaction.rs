@@ -46,8 +46,9 @@ impl Transaction {
     }
     pub fn ended(&self) {
         for transaction in &self.dependencies {
-            let mutex = &transaction.borrow_mut().count;
-            let mut data = mutex.lock().unwrap();
+            let transaction = &transaction.borrow_mut();
+            let mutex= transaction.count.lock();
+            let mut data = mutex.unwrap();
             *data -= 1;
             if *data == 0 {
                 // Run transaction;

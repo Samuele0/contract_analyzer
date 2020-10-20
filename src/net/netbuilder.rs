@@ -49,7 +49,7 @@ impl NetBuilder {
         let transaction = Arc::from(RefCell::from(Transaction::new(self.counter)));
         self.counter += 1;
         let mut methods_to_analyze = vec![(contract, method_data)];
-        while methods_to_analyze.len() > 0 {
+        while !methods_to_analyze.is_empty() {
             let method_data = methods_to_analyze.pop().unwrap();
 
             // Resolve dependencies for method access
@@ -58,7 +58,7 @@ impl NetBuilder {
                 self.contracts.get_mut(&method_data.0).unwrap(),
                 &transaction,
             );
-            
+
             // Resolve external Calls
             for call in &method_data.1.method_call {
                 let contract_addr = call.0.resolve();
@@ -101,7 +101,7 @@ impl NetBuilder {
             }
             let map = &mut contract.storage_read;
             // Add yourself to the reading list
-            let read_location = map.entry(memory_address).or_insert(Vec::new());
+            let read_location = map.entry(memory_address).or_insert_with(Vec::new);
             read_location.push(transaction.clone())
         }
 
@@ -130,7 +130,7 @@ impl NetBuilder {
 
             // Add yourself to the reading list
             let map = &mut contract.storage_read;
-            let read_location = map.entry(memory_address).or_insert(Vec::new());
+            let read_location = map.entry(memory_address).or_insert_with(Vec::new);
             read_location.push(transaction.clone())
         }
     }

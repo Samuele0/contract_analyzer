@@ -19,7 +19,7 @@ impl DataType {
             DataType::Field(x) => x.clone(),
             DataType::Struct(x) => x.clone(),
             DataType::Vector(x) => x.clone(),
-            DataType::Mapping(x, y) => x.clone(),
+            DataType::Mapping(x, _) => x.clone(),
             DataType::Unknown(x) => x.clone(),
         }
     }
@@ -79,14 +79,13 @@ pub fn top_level_data(expr: &StackValue) -> DataType {
             if let DataType::Vector(x) = top_level_data(a) {
                 return DataType::Vector(x);
             }
-            let ret = match right {
+            match right {
                 DataType::Unknown(x) => DataType::Unknown(Add(a.clone(), Box::from(x))),
                 DataType::Field(y) => DataType::Struct(y),
                 DataType::Struct(y) => DataType::Struct(y),
                 DataType::Mapping(x, y) => DataType::Mapping(x, y),
                 DataType::Vector(y) => DataType::Vector(y),
-            };
-            return ret;
+            }
         }
 
         Sha3(v) => {
@@ -96,17 +95,16 @@ pub fn top_level_data(expr: &StackValue) -> DataType {
             }
             if v.len() == 2 {
                 // Mapping
-                // TODO add reference to position
                 if v[0].0 > v[1].0 {
-                    return DataType::Mapping(v[0].1.clone(), expr.clone());
+                    DataType::Mapping(v[0].1.clone(), expr.clone())
                 } else {
-                    return DataType::Mapping(v[1].1.clone(), expr.clone());
+                    DataType::Mapping(v[1].1.clone(), expr.clone())
                 }
             } else {
-                return DataType::Unknown(expr.clone());
+                DataType::Unknown(expr.clone())
             }
         }
 
-        _ => return DataType::Unknown(expr.clone()),
+        _ => DataType::Unknown(expr.clone()),
     }
 }
