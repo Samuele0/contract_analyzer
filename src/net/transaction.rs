@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 pub struct Transaction {
     dependencies: Vec<Arc<RefCell<Transaction>>>,
     count: Mutex<usize>,
-    id: usize,
+    pub id: usize,
 }
 
 /// Bridge between library and client
@@ -13,6 +13,7 @@ pub trait TransactionDataProvider {
     fn get_target_contract(&self) -> U256;
     fn get_target_method(&self) -> MethodType;
 }
+#[derive(Clone)]
 pub enum MethodType {
     Constructor,
     Method(U256),
@@ -35,9 +36,11 @@ impl Transaction {
         // Do not insert duplicate transictions
         for transaction in &self.dependencies {
             if transaction.borrow().id == id {
+                println!("Already a dependency");
                 return;
             }
         }
+        println!("Added");
         // Increase the dependency counter of the other transaction
         other.borrow_mut().requires(1);
 

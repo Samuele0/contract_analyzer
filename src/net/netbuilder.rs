@@ -22,6 +22,8 @@ impl ContractStorage {
     }
 }
 
+// TODO: add dependencies to contructors
+
 impl NetBuilder {
     pub fn new() -> Self {
         NetBuilder {
@@ -114,8 +116,16 @@ impl NetBuilder {
             if let Some(list) = current {
                 // If there are transactions writing to this locations
                 for trans in list {
-                    // Add these transactions as dependencies
-                    trans.borrow_mut().required_by(transaction.clone());
+                    let id1 = trans.borrow().id;
+                    if id1 != transaction.borrow().id {
+                        println!(
+                            "Adding dependency: ({})=>({})",
+                            id1,
+                            transaction.borrow().id
+                        );
+                        // Add these transactions as dependencies
+                        trans.borrow_mut().required_by(transaction.clone());
+                    }
                 }
             }
             // Add dependency to writing transactions
@@ -123,8 +133,17 @@ impl NetBuilder {
             if let Some(list) = current {
                 // If there are transactions writing to this locations
                 for trans in list {
-                    // Add these transactions as dependencies
-                    trans.borrow_mut().required_by(transaction.clone());
+                    let id1 = trans.borrow().id;
+                    if id1 != transaction.borrow().id {
+                        println!(
+                            "Adding dependency: ({})=>({})",
+                            id1,
+                            transaction.borrow().id
+                        );
+
+                        // Add these transactions as dependencies
+                        trans.borrow_mut().required_by(transaction.clone());
+                    }
                 }
             }
 
