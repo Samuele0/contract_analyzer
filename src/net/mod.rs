@@ -1,4 +1,6 @@
 pub mod netbuilder;
+#[cfg(test)]
+mod test_macro;
 pub mod transaction;
 #[cfg(test)]
 mod tests {
