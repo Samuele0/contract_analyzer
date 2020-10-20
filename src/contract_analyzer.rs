@@ -4,7 +4,7 @@ use crate::evm_execution::EvmExecution;
 use crate::evm_types::StackValue::*;
 use std::collections::vec_deque::VecDeque;
 
-pub fn analyze_contract(code: Vec<u8>) -> ContractData {
+pub fn analyze_contract(code: &[u8]) -> ContractData {
     let mut executions: VecDeque<EvmExecution<'_>> = VecDeque::new();
     executions.push_back(EvmExecution::new(&code[..], 0));
     let mut runtime_code: Option<Vec<u8>> = None;
