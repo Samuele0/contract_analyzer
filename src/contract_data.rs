@@ -28,7 +28,7 @@ impl ContractData {
             return self.methods.get_mut(&hash).unwrap();
         }
         self.methods.insert(hash, ContractMethod::new());
-        return self.methods.get_mut(&hash).unwrap();
+        self.methods.get_mut(&hash).unwrap()
     }
 
     pub fn set_constructor(&mut self, method: ContractMethod) {
