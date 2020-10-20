@@ -1,5 +1,5 @@
 use super::transaction::{MethodType, Transaction, TransactionDataProvider};
-use crate::contract_data::ContractData;
+use crate::contract_data::{ContractData, ContractMethod};
 use ethereum_types::U256;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -48,64 +48,90 @@ impl NetBuilder {
         // Create the transaction
         let transaction = Arc::from(RefCell::from(Transaction::new(self.counter)));
         self.counter += 1;
-
-        let mut methods_to_analyze = vec![method_data];
+        let mut methods_to_analyze = vec![(contract, method_data)];
         while methods_to_analyze.len() > 0 {
             let method_data = methods_to_analyze.pop().unwrap();
-            // Resolve dependencies for read access
-            for access in &method_data.storage_read {
-                // TODO: Replace resolve
-                let memory_address = access.value().resolve().unwrap();
-                let current = self.contracts[&contract].storage_write.get(&memory_address);
-                if let Some(list) = current {
-                    // If there are transactions writing to this locations
-                    for trans in list {
-                        // Add these transactions as dependencies
-                        trans.borrow_mut().required_by(transaction.clone());
-                    }
-                }
-                let map = &mut self.contracts.get_mut(&contract).unwrap().storage_read;
-                // Add yourself to the reading list
-                let read_location = map.entry(memory_address).or_insert(Vec::new());
-                read_location.push(transaction.clone())
-            }
 
-            // Resolve dependencies for write access
-            for access in &method_data.storage_write {
-                // TODO: Replace resolve
-                let memory_address = access.value().resolve().unwrap();
-                // Add dependencies to reading transactions
-                let current = self.contracts[&contract].storage_write.get(&memory_address);
-                if let Some(list) = current {
-                    // If there are transactions writing to this locations
-                    for trans in list {
-                        // Add these transactions as dependencies
-                        trans.borrow_mut().required_by(transaction.clone());
-                    }
-                }
-                // Add dependency to writing transactions
-                let current = self.contracts[&contract].storage_read.get(&memory_address);
-                if let Some(list) = current {
-                    // If there are transactions writing to this locations
-                    for trans in list {
-                        // Add these transactions as dependencies
-                        trans.borrow_mut().required_by(transaction.clone());
-                    }
-                }
-
-                // Add yourself to the reading list
-                let map = &mut self.contracts.get_mut(&contract).unwrap().storage_read;
-                let read_location = map.entry(memory_address).or_insert(Vec::new());
-                read_location.push(transaction.clone())
-            }
-
+            // Resolve dependencies for method access
+            Self::analyze_method(
+                method_data.1,
+                self.contracts.get_mut(&method_data.0).unwrap(),
+                &transaction,
+            );
+            
             // Resolve external Calls
-            for call in &method_data.method_call {
-                let contract = call.0.resolve().unwrap();
+            for call in &method_data.1.method_call {
+                let contract_addr = call.0.resolve();
                 let method = call.1.resolve().unwrap();
-                let new_method = &self.contract_data[&contract].methods[&method];
-                methods_to_analyze.push(new_method);
+                if let Some(c) = contract_addr {
+                    // If we can resolve the contract hash
+                    let new_method = &self.contract_data[&c].methods[&method];
+                    methods_to_analyze.push((c, new_method));
+                } else {
+                    // Otherwise add dependency to all
+                    // Look for contracts with compatible methods
+                    for c in &self.contract_data {
+                        for m in &c.1.methods {
+                            if *m.0 == method {
+                                // If they have the same signature
+                                methods_to_analyze.push((*c.0, m.1))
+                            }
+                        }
+                    }
+                }
             }
+        }
+    }
+
+    fn analyze_method(
+        method_data: &ContractMethod,
+        contract: &mut ContractStorage,
+        transaction: &Arc<RefCell<Transaction>>,
+    ) {
+        for access in &method_data.storage_read {
+            // TODO: Replace resolve
+            let memory_address = access.value().resolve().unwrap();
+            let current = contract.storage_write.get(&memory_address);
+            if let Some(list) = current {
+                // If there are transactions writing to this locations
+                for trans in list {
+                    // Add these transactions as dependencies
+                    trans.borrow_mut().required_by(transaction.clone());
+                }
+            }
+            let map = &mut contract.storage_read;
+            // Add yourself to the reading list
+            let read_location = map.entry(memory_address).or_insert(Vec::new());
+            read_location.push(transaction.clone())
+        }
+
+        // Resolve dependencies for write access
+        for access in &method_data.storage_write {
+            // TODO: Replace resolve
+            let memory_address = access.value().resolve().unwrap();
+            // Add dependencies to reading transactions
+            let current = contract.storage_write.get(&memory_address);
+            if let Some(list) = current {
+                // If there are transactions writing to this locations
+                for trans in list {
+                    // Add these transactions as dependencies
+                    trans.borrow_mut().required_by(transaction.clone());
+                }
+            }
+            // Add dependency to writing transactions
+            let current = contract.storage_read.get(&memory_address);
+            if let Some(list) = current {
+                // If there are transactions writing to this locations
+                for trans in list {
+                    // Add these transactions as dependencies
+                    trans.borrow_mut().required_by(transaction.clone());
+                }
+            }
+
+            // Add yourself to the reading list
+            let map = &mut contract.storage_read;
+            let read_location = map.entry(memory_address).or_insert(Vec::new());
+            read_location.push(transaction.clone())
         }
     }
 }
