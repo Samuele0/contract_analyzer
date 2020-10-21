@@ -51,6 +51,10 @@ impl NetBuilder {
         let transaction = Arc::from(RefCell::from(Transaction::new(self.counter)));
         self.counter += 1;
         let mut methods_to_analyze = vec![(contract, method_data)];
+        let mut methods_analyzed = vec![]; // Keep a list of analyzed methods to avoid cycles
+        if let MethodType::Method(x) = method {
+            methods_analyzed.push((contract, x));
+        }
         while !methods_to_analyze.is_empty() {
             let method_data = methods_to_analyze.pop().unwrap();
 
