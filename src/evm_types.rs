@@ -106,6 +106,30 @@ impl StackValue {
             StackValue::ActualValue(x) => Some(*x),
             StackValue::Add(x, y) => self.resolve_sum(*x.clone(), *y.clone()),
             StackValue::CodeSection(x) => Some(U256::from(&x[..])),
+            StackValue::ShL(a, b) => {
+                if let Some(x) = b.resolve() {
+                    if let Some(y) = a.resolve() {
+                        return Some(x << y);
+                    }
+                }
+                None
+            }
+            StackValue::Shr(a, b) => {
+                if let Some(x) = b.resolve() {
+                    if let Some(y) = a.resolve() {
+                        return Some(x >> y);
+                    }
+                }
+                None
+            }
+            StackValue::And(a,b) => {
+                if let Some(x) = b.resolve() {
+                    if let Some(y) = a.resolve() {
+                        return Some(x & y);
+                    }
+                }
+                None
+            }
             _ => None,
         }
     }
