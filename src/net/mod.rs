@@ -11,9 +11,9 @@ mod tests {
     use crate::evm_types::StackValue;
     use ethereum_types::U256;
     use std::collections::{HashMap, HashSet};
-    struct MockTransaction {
-        target: U256,
-        method: MethodType,
+    pub struct MockTransaction {
+        pub target: U256,
+        pub method: MethodType,
     }
     impl TransactionDataProvider for MockTransaction {
         fn get_target_contract(&self) -> U256 {
