@@ -3,11 +3,19 @@ extern crate ethereum_types;
 pub mod contract_analyzer;
 pub mod contract_data;
 pub mod contract_utils;
-pub mod evm_execution;
+//pub mod evm_execution;
+pub mod evm_function;
+pub mod evm_instructions;
 pub mod evm_memory;
 pub mod evm_types;
-pub mod net;
+//pub mod net;
+pub mod cycle_resolution;
 
+/*macro_rules! u56 {
+    (a:$expr) => {
+        U256::from(a);
+    };
+}*/
 #[cfg(test)]
 mod tests {
     use crate::contract_analyzer::analyze_contract;
@@ -571,5 +579,4 @@ mod tests {
         ];
         test_code(code)
     }
-   
 }

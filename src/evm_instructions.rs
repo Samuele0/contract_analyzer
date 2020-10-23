@@ -1,53 +1,10 @@
-use crate::contract_utils::top_level_data;
-use crate::contract_utils::DataType;
-
-use crate::evm_memory::{EvmMemory, EvmStack};
-use crate::evm_types::StackValue;
-use crate::evm_types::StackValue::*;
+use crate::cycle_resolution::CycleSolver;
+use crate::evm_function::EvmFunction;
+use crate::evm_types::{StackValue, StackValue::*};
 use ethereum_types::U256;
-use std::collections::vec_deque::VecDeque;
 use std::collections::HashSet;
-#[derive(Debug, Clone)]
-pub struct EvmExecution<'a> {
-    pub stack: EvmStack,
-    pub memory: EvmMemory,
-    pc: usize,
-    ended: bool,
-    code: &'a [u8],
-    pub execution_list: VecDeque<EvmExecution<'a>>,
-    pub return_value: Option<(StackValue, StackValue)>,
-    jumped: bool,
-    /// List of jumpdests that might be the start of a cycle
-    maybecycle: HashSet<usize>,
-    /// List of conditions required to reach this execution
-    pub guards: Vec<StackValue>,
-    pub storage_access_read: HashSet<DataType>,
-    pub storage_access_write: HashSet<DataType>,
-    pub external_calls: HashSet<(StackValue, StackValue)>,
-    /// List of jumpdests visited up to this point
-    function_stack: Vec<usize>,
-}
-
-impl<'a> EvmExecution<'a> {
-    pub fn new(code: &'a [u8], pc: usize) -> Self {
-        EvmExecution {
-            stack: EvmStack::new(),
-            memory: EvmMemory::new(),
-            pc,
-            ended: false,
-            code,
-            execution_list: VecDeque::new(),
-            return_value: None,
-            jumped: false,
-            maybecycle: HashSet::new(),
-            guards: Vec::new(),
-            storage_access_read: HashSet::new(),
-            storage_access_write: HashSet::new(),
-            external_calls: HashSet::new(),
-            function_stack: vec![0usize],
-        }
-    }
-    pub fn execute(&mut self) {
+impl<'a> EvmFunction<'a> {
+    pub fn execute(&mut self, cycle_solver: &mut dyn CycleSolver) {
         while !self.ended {
             let opcode = self.code[self.pc];
             match opcode {
@@ -104,8 +61,8 @@ impl<'a> EvmExecution<'a> {
                 0x51 => self.mload(),
                 0x52 => self.mstore(),
                 0x53 => self.mstore8(),
-                0x54 => self.sload(),
-                0x55 => self.sstore(),
+                0x54 => self.sload(cycle_solver),
+                0x55 => self.sstore(cycle_solver),
                 0x56 => self.jump(),
                 0x57 => self.jumpi(),
                 0x58 => self.pc(),
@@ -195,35 +152,36 @@ impl<'a> EvmExecution<'a> {
             self.pc += 1;
         }
     }
-    /*pub fn log_operation(&self, name: &str) {
+    pub fn log_operation(&self, name: &str) {
         println!("{}\t\x1b[0;34m{}\t{}\x1b[0m", self.pc, name, self.stack);
-    }*/
+    }
 
     /* Instructions */
     pub fn stop(&mut self) {
-        //self.log_operation("STOP");
+        self.log_operation("STOP");
         self.ended = true;
     }
+
     pub fn add(&mut self) {
-        //self.log_operation("ADD");
+        self.log_operation("ADD");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(Add(Box::from(op1), Box::from(op2)));
     }
     pub fn mul(&mut self) {
-        //self.log_operation("MUL");
+        self.log_operation("MUL");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(Mul(Box::from(op1), Box::from(op2)));
     }
     pub fn sub(&mut self) {
-        //self.log_operation("SUB");
+        self.log_operation("SUB");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(Sub(Box::from(op1), Box::from(op2)));
     }
     pub fn div(&mut self) {
-        //self.log_operation("DIV");
+        self.log_operation("DIV");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         /* if let Some(a) = op1.resolve() {
@@ -235,25 +193,25 @@ impl<'a> EvmExecution<'a> {
         self.stack.push(Div(Box::from(op1), Box::from(op2)));
     }
     pub fn sdiv(&mut self) {
-        //self.log_operation("SDIV");
+        self.log_operation("SDIV");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(SDiv(Box::from(op1), Box::from(op2)));
     }
     pub fn mod_(&mut self) {
-        //self.log_operation("MOD");
+        self.log_operation("MOD");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(Mod(Box::from(op1), Box::from(op2)));
     }
     pub fn smod(&mut self) {
-        //self.log_operation("SMOD");
+        self.log_operation("SMOD");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(SMod(Box::from(op1), Box::from(op2)));
     }
     pub fn add_mod(&mut self) {
-        //self.log_operation("ADDMOD");
+        self.log_operation("ADDMOD");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         let op3 = self.stack.pop();
@@ -261,7 +219,7 @@ impl<'a> EvmExecution<'a> {
             .push(AddMod(Box::from(op1), Box::from(op2), Box::from(op3)));
     }
     pub fn mul_mod(&mut self) {
-        //self.log_operation("MULMOD");
+        self.log_operation("MULMOD");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         let op3 = self.stack.pop();
@@ -269,144 +227,144 @@ impl<'a> EvmExecution<'a> {
             .push(MulMod(Box::from(op1), Box::from(op2), Box::from(op3)));
     }
     pub fn exp(&mut self) {
-        //self.log_operation("EXP");
+        self.log_operation("EXP");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(Exp(Box::from(op1), Box::from(op2)));
     }
     pub fn sign_extend(&mut self) {
-        //self.log_operation("SIGNEXTEND");
+        self.log_operation("SIGNEXTEND");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(SignExtend(Box::from(op1), Box::from(op2)));
     }
     pub fn lt(&mut self) {
-        //self.log_operation("LT");
+        self.log_operation("LT");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(LT(Box::from(op1), Box::from(op2)));
     }
     pub fn gt(&mut self) {
-        //self.log_operation("GT");
+        self.log_operation("GT");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(GT(Box::from(op1), Box::from(op2)));
     }
     pub fn slt(&mut self) {
-        //self.log_operation("SLT");
+        self.log_operation("SLT");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(SLT(Box::from(op1), Box::from(op2)));
     }
     pub fn sgt(&mut self) {
-        //self.log_operation("SGT");
+        self.log_operation("SGT");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(SGT(Box::from(op1), Box::from(op2)));
     }
     pub fn eq(&mut self) {
-        //self.log_operation("EQ");
+        self.log_operation("EQ");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(EQ(Box::from(op1), Box::from(op2)));
     }
     pub fn iszero(&mut self) {
-        //self.log_operation("ISZERO");
+        self.log_operation("ISZERO");
         let op = self.stack.pop();
         self.stack.push(IsZero(Box::from(op)));
     }
     pub fn and(&mut self) {
-        //self.log_operation("AND");
+        self.log_operation("AND");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(And(Box::from(op1), Box::from(op2)));
     }
     pub fn or(&mut self) {
-        //self.log_operation("OR");
+        self.log_operation("OR");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(Or(Box::from(op1), Box::from(op2)));
     }
     pub fn xor(&mut self) {
-        //self.log_operation("XOR");
+        self.log_operation("XOR");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(Xor(Box::from(op1), Box::from(op2)));
     }
     pub fn not(&mut self) {
-        //self.log_operation("NOT");
+        self.log_operation("NOT");
         let op1 = self.stack.pop();
         self.stack.push(Not(Box::from(op1)));
     }
     pub fn byte(&mut self) {
-        //self.log_operation("BYTE");
+        self.log_operation("BYTE");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(Byte(Box::from(op1), Box::from(op2)));
     }
     pub fn shl(&mut self) {
-        //self.log_operation("SHL");
+        self.log_operation("SHL");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(ShL(Box::from(op1), Box::from(op2)));
     }
     pub fn shr(&mut self) {
-        //self.log_operation("SHR");
+        self.log_operation("SHR");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(Shr(Box::from(op1), Box::from(op2)));
     }
     pub fn sar(&mut self) {
-        //self.log_operation("SAR");
+        self.log_operation("SAR");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.stack.push(Sar(Box::from(op1), Box::from(op2)));
     }
     pub fn sha3(&mut self) {
-        //self.log_operation("SHA3");
-        let op1 = self.stack.pop();
+        self.log_operation("SHA3");
+        /*let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         /*let value= self.memory.retrive_actual(op1, op2);
         let mut hasher= Keccak256::new();
         hasher.update(&value[..]);
         self.stack.push(ActualValue(U256::from(&hasher.finalize()[..])));*/
-        /*let value = self
+        let value = self
             .memory
             .retrive_array(op1.resolve().unwrap(), op2.resolve().unwrap());
         self.stack.push(Sha3(value));*/
     }
     pub fn address(&mut self) {
-        //self.log_operation("ADDRESS");
+        self.log_operation("ADDRESS");
         self.stack.push(Address);
     }
     pub fn balance(&mut self) {
-        //self.log_operation("BALANCE");
+        self.log_operation("BALANCE");
         let address = self.stack.pop();
         self.stack.push(Balance(Box::from(address)));
     }
     pub fn origin(&mut self) {
-        //self.log_operation("ORIGIN");
+        self.log_operation("ORIGIN");
         self.stack.push(Origin);
     }
     pub fn caller(&mut self) {
-        //self.log_operation("CALLER");
+        self.log_operation("CALLER");
         self.stack.push(Caller);
     }
     pub fn callvalue(&mut self) {
-        //self.log_operation("CALLVALUE");
+        self.log_operation("CALLVALUE");
         self.stack.push(CallValue);
     }
     pub fn calldata_load(&mut self) {
-        //self.log_operation("CALLDATALOAD");
+        self.log_operation("CALLDATALOAD");
         let op1 = self.stack.pop();
         self.stack.push(CallDataLoad(Box::from(op1)));
     }
     pub fn calldata_size(&mut self) {
-        //self.log_operation("CALLDATASIZE");
+        self.log_operation("CALLDATASIZE");
         self.stack.push(CallDataSize);
     }
     pub fn calldata_copy(&mut self) {
-        //self.log_operation("CALLDATACOPY");
+        self.log_operation("CALLDATACOPY");
         let length = self.stack.pop();
         let offset = self.stack.pop();
         let dest_offset = self.stack.pop();
@@ -415,12 +373,12 @@ impl<'a> EvmExecution<'a> {
         self.memory.store(dest_offset, value, length_clone);
     }
     pub fn code_size(&mut self) {
-        //self.log_operation("CODESIZE");
+        self.log_operation("CODESIZE");
         self.stack.push(CodeSize);
     }
     pub fn codecopy(&mut self) {
-        //self.log_operation("CODECOPY");
-        let dest_offset = self.stack.pop();
+        self.log_operation("CODECOPY");
+        /*let dest_offset = self.stack.pop();
         let code_offset = self.stack.pop();
         let length = self.stack.pop();
         let length2 = length.clone();
@@ -437,19 +395,19 @@ impl<'a> EvmExecution<'a> {
             }
         }
         value = CodeCopy(Box::from(code_offset), Box::from(length));
-        self.memory.store(dest_offset, value, length2);
+        self.memory.store(dest_offset, value, length2);*/
     }
     pub fn gasprice(&mut self) {
-        //self.log_operation("GASPRICE");
+        self.log_operation("GASPRICE");
         self.stack.push(GasPrice);
     }
     pub fn ext_codesize(&mut self) {
-        //self.log_operation("EXTCODESIZE");
+        self.log_operation("EXTCODESIZE");
         let op1 = self.stack.pop();
         self.stack.push(ExtCodeSize(Box::from(op1)));
     }
     pub fn ext_codecopy(&mut self) {
-        //self.log_operation("EXTCODECOPY");
+        self.log_operation("EXTCODECOPY");
         let length = self.stack.pop();
         let code_offset = self.stack.pop();
         let dest_offset = self.stack.pop();
@@ -462,11 +420,11 @@ impl<'a> EvmExecution<'a> {
         self.memory.store(dest_offset, value, length);
     }
     pub fn return_data_size(&mut self) {
-        //self.log_operation("RETURNDATASIZE");
+        self.log_operation("RETURNDATASIZE");
         self.stack.push(ReturnDataSize);
     }
     pub fn return_data_copy(&mut self) {
-        //self.log_operation("RETURNDATACOPY");
+        self.log_operation("RETURNDATACOPY");
         let length = self.stack.pop();
         let code_offset = self.stack.pop();
         let dest_offset = self.stack.pop();
@@ -474,86 +432,96 @@ impl<'a> EvmExecution<'a> {
         self.memory.store(dest_offset, value, length);
     }
     pub fn ext_codehash(&mut self) {
-        //self.log_operation("EXTCODEHASH");
+        self.log_operation("EXTCODEHASH");
         let op1 = self.stack.pop();
         self.stack.push(ExtCodeHash(Box::from(op1)));
     }
     pub fn blockhash(&mut self) {
-        //self.log_operation("BLOCKHASH");
+        self.log_operation("BLOCKHASH");
         let op1 = self.stack.pop();
         self.stack.push(Blockhash(Box::from(op1)));
     }
     pub fn coinbase(&mut self) {
-        //self.log_operation("COINBASE");
+        self.log_operation("COINBASE");
         self.stack.push(CoinBase);
     }
     pub fn timestamp(&mut self) {
-        //self.log_operation("TIMESTAMP");
+        self.log_operation("TIMESTAMP");
         self.stack.push(TimeStamp);
     }
     pub fn number(&mut self) {
-        //self.log_operation("NUMBER");
+        self.log_operation("NUMBER");
         self.stack.push(Number);
     }
     pub fn difficulty(&mut self) {
-        //self.log_operation("DIFFICULTY");
+        self.log_operation("DIFFICULTY");
         self.stack.push(Difficulty);
     }
     pub fn gaslimit(&mut self) {
-        //self.log_operation("GASLIMIT");
+        self.log_operation("GASLIMIT");
         self.stack.push(GasLimit);
     }
     pub fn pop(&mut self) {
-        //self.log_operation("POP");
+        self.log_operation("POP");
         self.stack.pop();
     }
     pub fn mload(&mut self) {
-        //self.log_operation("MLOAD");
+        self.log_operation("MLOAD");
         let offset = self.stack.pop();
         let sv = self
             .memory
-            .retrive(offset, ActualValue(U256::from(32)))
-            .unwrap();
-        self.stack.push(sv);
+            .retrive(offset.clone(), ActualValue(U256::from(32)));
+        if let Some(av) = sv {
+            self.stack.push(av);
+        } else {
+            self.stack.push(MemoryPlaceHolder(
+                Box::from(offset),
+                Box::from(ActualValue(U256::from(32))),
+            ))
+        }
     }
     pub fn mstore(&mut self) {
-        //self.log_operation("MSTORE");
+        self.log_operation("MSTORE");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.memory.store(op1, op2, ActualValue(U256::from(32)));
     }
     pub fn mstore8(&mut self) {
-        //self.log_operation("MSTORE8");
+        self.log_operation("MSTORE8");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.memory.store(op1, op2, ActualValue(U256::from(1)));
     }
-    pub fn sload(&mut self) {
-        //self.log_operation("SLOAD");
+    pub fn sload(&mut self, cycle_solver: &mut dyn CycleSolver) {
+        self.log_operation("SLOAD");
         let op1 = self.stack.pop();
-        let top = top_level_data(&op1);
+        let top = cycle_solver.get_data(&op1);
         self.stack.push(SLoad(Box::from(top.value())));
         self.storage_access_read.insert(top);
     }
-    pub fn sstore(&mut self) {
-        //self.log_operation("SSTORE");
+    pub fn sstore(&mut self, cycle_solver: &mut dyn CycleSolver) {
+        self.log_operation("SSTORE");
         let storage = self.stack.pop();
         self.stack.pop();
-        let top = top_level_data(&storage);
+        let top = cycle_solver.get_data(&storage);
         self.storage_access_write.insert(top);
     }
     pub fn jump(&mut self) {
-        //self.log_operation("JUMP");
-        let nextpc = self.stack.pop().resolve().unwrap().as_usize();
-        if !self.maybecycle.contains(&nextpc) && !self.function_stack.contains(&nextpc) {
-            self.pc = nextpc;
-            self.function_stack.push(nextpc);
-            self.jumped = true;
-        }
+        self.log_operation("JUMP");
+        /*let nextpc = self.stack.pop().resolve().unwrap().as_usize();
+            if !self.maybecycle.contains(&nextpc) && !self.function_stack.contains(&nextpc) {
+                self.pc = nextpc;
+                self.function_stack.push(nextpc);
+                self.jumped = true;
+        }*/
+        let jmp_address = self.stack.pop();
+        self.ended = true;
+        self.internal_calls
+            .push((jmp_address, self.stack.clone(), self.memory.clone()))
     }
     pub fn jumpi(&mut self) {
-        //self.log_operation("JUMPI");
-        let address = self.stack.pop().resolve().unwrap().as_usize();
+        self.log_operation("JUMPI");
+        /*let address = self.stack.pop().resolve().unwrap().as_usize();
         if self.maybecycle.contains(&address) || self.function_stack.contains(&address) {
             return; // Do not follow cycles
         }
@@ -563,45 +531,50 @@ impl<'a> EvmExecution<'a> {
         other.function_stack.push(address);
         other.jumped = true;
         other.guards.push(condition);
-        self.execution_list.push_back(other);
+        self.execution_list.push_back(other);*/
+        let jmp_address = self.stack.pop();
+        let condition = self.stack.pop();
+        println!("jumping to {:?}", jmp_address);
+        self.internal_calls
+            .push((jmp_address, self.stack.clone(), self.memory.clone()));
     }
     pub fn pc(&mut self) {
-        //self.log_operation("PC");
+        self.log_operation("PC");
         self.stack.push(ActualValue(U256::from(self.pc)));
     }
     pub fn msize(&mut self) {
-        //self.log_operation("MSIZE");
+        self.log_operation("MSIZE");
         self.stack.push(MSize);
     }
     pub fn gas(&mut self) {
-        //self.log_operation("GAS");
+        self.log_operation("GAS");
         self.stack.push(Gas);
     }
     pub fn jumpdest(&mut self) {
-        //self.log_operation("JUMPDEST");
-        if self.jumped {
+        self.log_operation("JUMPDEST");
+        /*if self.jumped {
             self.jumped = false;
             return;
         }
-        self.maybecycle.insert(self.pc);
+        self.maybecycle.insert(self.pc);*/
     }
     pub fn push(&mut self, length: usize) {
         let value = &self.code[self.pc + 1..(self.pc + length + 1)];
-        //self.log_operation(&format!("PUSH({:?})", value)[..]);
+        self.log_operation(&format!("PUSH({:?})", value)[..]);
         self.pc += length;
         self.stack.push(ActualValue(U256::from(value)));
     }
     pub fn dup(&mut self, n: usize) {
-        //self.log_operation(&format!("DUP {}", n)[..]);
-        let value = self.stack.clone(n);
+        self.log_operation(&format!("DUP {}", n)[..]);
+        let value = self.stack.clone_pos(n);
         self.stack.push(value);
     }
     pub fn swap(&mut self, n: usize) {
-        //self.log_operation(&format!("SWAP {}", n)[..]);
+        self.log_operation(&format!("SWAP {}", n)[..]);
         self.stack.swap(n);
     }
     pub fn log(&mut self, n: usize) {
-        //self.log_operation(&format!("LOG {}", n)[..]);
+        self.log_operation(&format!("LOG {}", n)[..]);
         self.stack.pop();
         self.stack.pop();
         for _ in 0..n {
@@ -609,7 +582,7 @@ impl<'a> EvmExecution<'a> {
         }
     }
     pub fn create(&mut self) {
-        //self.log_operation("CREATE");
+        self.log_operation("CREATE");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         let op3 = self.stack.pop();
@@ -617,7 +590,7 @@ impl<'a> EvmExecution<'a> {
             .push(Create(Box::from(op1), Box::from(op2), Box::from(op3)));
     }
     pub fn call(&mut self) {
-        //self.log_operation("CALL");
+        self.log_operation("CALL");
         let op1 = self.stack.pop();
         let address = self.stack.pop();
         let op3 = self.stack.pop();
@@ -639,14 +612,14 @@ impl<'a> EvmExecution<'a> {
         ))
     }
     pub fn return_(&mut self) {
-        //self.log_operation("RETURN");
+        self.log_operation("RETURN");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         self.return_value = Some((op2, op1));
         self.ended = true;
     }
     pub fn delegate_call(&mut self) {
-        //self.log_operation("DELEGATECALL");
+        self.log_operation("DELEGATECALL");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         let op3 = self.stack.pop();
@@ -663,7 +636,7 @@ impl<'a> EvmExecution<'a> {
         ))
     }
     pub fn create2(&mut self) {
-        //self.log_operation("CREATE2");
+        self.log_operation("CREATE2");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         let op3 = self.stack.pop();
@@ -676,7 +649,7 @@ impl<'a> EvmExecution<'a> {
         ))
     }
     pub fn static_call(&mut self) {
-        //self.log_operation("STATICCALL");
+        self.log_operation("STATICCALL");
         let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         let op3 = self.stack.pop();
@@ -693,7 +666,7 @@ impl<'a> EvmExecution<'a> {
         ))
     }
     pub fn revert(&mut self) {
-        //self.log_operation("REVERT");
+        self.log_operation("REVERT");
         // Revert all changes
         self.storage_access_read = HashSet::new();
         self.storage_access_write = HashSet::new();
@@ -701,7 +674,7 @@ impl<'a> EvmExecution<'a> {
         self.ended = true;
     }
     pub fn selfdestruct(&mut self) {
-        //self.log_operation("SELFDESTRUCT");
+        self.log_operation("SELFDESTRUCT");
         self.ended = true;
     }
 }

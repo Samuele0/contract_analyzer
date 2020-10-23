@@ -5,6 +5,9 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct EvmStack {
     stack: Vec<StackValue>,
+    deficit: usize,
+    ///Callee values edited by this function
+    calee_edits: Vec<(usize, StackValue)>,
 }
 #[derive(Debug, Clone)]
 pub struct EvmMemory {
@@ -33,10 +36,10 @@ impl EvmMemory {
                 return Some(el.1.clone());
             }
         }
-        Some(StackValue::ActualValue(U256::from(0)))
+        None
     }
     /// Attempt to retrive more than one consecutive memory position; this is only possible if the memory offsets and lengths can be resolved as U256
-    pub fn retrive_array(&self, offset: U256, length: U256) -> Vec<(usize, StackValue)> {
+    /* pub fn retrive_array(&self, offset: U256, length: U256) -> Vec<(usize, StackValue)> {
         self.print_memory();
         let mut vector: Vec<(usize, StackValue)> = Vec::new();
         for el in self.actual_memory.iter().rev() {
@@ -55,9 +58,10 @@ impl EvmMemory {
             }
         }
         vector
-    }
+    }*/
+
     pub fn print_memory(&self) {
-        /*print!("\x1b[0;31mMEMORY:",);
+        print!("\x1b[0;31mMEMORY:",);
         let c1 = "\x1b[0;31m";
         let c2 = "\x1b[0;37m";
         let mut counter = 0;
@@ -70,27 +74,57 @@ impl EvmMemory {
             }
             counter += 1;
         }
-        print!("\x1b[0m\n")*/
+        print!("\x1b[0m\n")
     }
 }
 
 impl EvmStack {
     pub fn new() -> Self {
-        EvmStack { stack: Vec::new() }
+        EvmStack {
+            stack: Vec::new(),
+            deficit: 0,
+            calee_edits: Vec::new(),
+        }
+    }
+    fn previous_get(&self, position: usize) -> StackValue {
+        for edit in &self.calee_edits {
+            if edit.0 == position {
+                return edit.1.clone();
+            }
+        }
+        StackValue::StackPaceHolder(position)
     }
     pub fn pop(&mut self) -> StackValue {
-        self.stack.pop().unwrap() // TODO: handle empty stack
+        if let Some(v) = self.stack.pop() {
+            v
+        } else {
+            self.deficit += 1;
+            self.previous_get(self.deficit)
+        }
     }
     pub fn push(&mut self, value: StackValue) {
         self.stack.push(value);
     }
-    pub fn clone(&self, position: usize) -> StackValue {
-        let pointer = self.stack.get(self.stack.len() - position).unwrap();
-        (*pointer).clone()
+    pub fn clone_pos(&self, position: usize) -> StackValue {
+        if position < self.stack.len() {
+            let pointer = self.stack.get(self.stack.len() - position).unwrap();
+            (*pointer).clone()
+        } else {
+            let deficit = position - self.stack.len() + 1;
+            self.previous_get(self.deficit + deficit)
+        }
     }
     pub fn swap(&mut self, i: usize) {
-        let len = self.stack.len() - 1;
-        self.stack.swap(len, len - i);
+        if i < self.stack.len() {
+            let len = self.stack.len() - 1;
+            self.stack.swap(len, len - i);
+        } else {
+            let el1 = self.pop();
+            let pre = i - self.stack.len() + 1;
+            let el2 = self.previous_get(self.deficit + pre);
+            self.push(el2);
+            self.calee_edits.push((self.deficit + pre, el1));
+        }
     }
 }
 
