@@ -32,7 +32,7 @@ mod tests {
         let len = code.len();
         let mut timings = Vec::new();
 
-        for _ in 1..10000 {
+        for _ in 1..10 {
             let time = Instant::now();
             analyze_contract(code);
             let elapsed = time.elapsed();
