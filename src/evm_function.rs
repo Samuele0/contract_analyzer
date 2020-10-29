@@ -39,13 +39,19 @@ pub struct EvmFunction<'a> {
     /// The functions are referenced by their starting position, since we might not yet be able to resolve their actual location the positions are stored as StackValues.
     ///
     /// The stack and memory state at the moment of invocation are also recorded, since they might me accessed by the called function.
-    pub internal_calls: Vec<(StackValue, EvmStack, EvmMemory)>,
+    ///
+    /// The values memorized in the tuple are the following:
+    /// 1. Jump address
+    /// 2. Evm Stack at the moment of the call
+    /// 3. Evm Memory at the moment of the call
+    /// 4. Condition required to make the jump (None for unconditional jumps)
+    pub internal_calls: Vec<(StackValue, EvmStack, EvmMemory, Option<StackValue>)>,
 
     /// The list of internal storage locations accessed by this function for reading
-    pub storage_access_read: HashSet<DataType>,
+    pub storage_access_read: HashSet<StackValue>,
 
     /// The list of internal storage locations accessed by this function for writing
-    pub storage_access_write: HashSet<DataType>,
+    pub storage_access_write: HashSet<StackValue>,
 
     /// The list of external (belonging to other contracts) functions invoked by this one
     pub external_calls: HashSet<(StackValue, StackValue)>,

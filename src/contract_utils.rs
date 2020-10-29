@@ -27,26 +27,24 @@ impl DataType {
 }
 
 /// Return the root public method which this execution belongs to;
-/*pub fn get_pubblic_method(execution: &EvmExecution) -> Option<U256> {
-    for guard in &execution.guards {
-        if let EQ(a, b) = guard {
-            // Method guards allways start with eq
-            if let ActualValue(x) = **a {
-                let hash = x;
-                if look_for_calldata(&*b) {
-                    return Some(hash);
-                }
+pub fn get_pubblic_method(guard: &StackValue) -> Option<U256> {
+    if let EQ(a, b) = guard {
+        // Method guards allways start with eq
+        if let ActualValue(x) = **a {
+            let hash = x;
+            if look_for_calldata(&*b) {
+                return Some(hash);
             }
-            if let ActualValue(x) = **b {
-                let hash = x;
-                if look_for_calldata(&*a) {
-                    return Some(hash);
-                }
+        }
+        if let ActualValue(x) = **b {
+            let hash = x;
+            if look_for_calldata(&*a) {
+                return Some(hash);
             }
         }
     }
     None
-}*/
+}
 
 /// looks for a CallDataLoad(0) inside a StackValue tree
 pub fn look_for_calldata(val: &StackValue) -> bool {

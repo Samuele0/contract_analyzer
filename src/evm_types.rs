@@ -166,6 +166,20 @@ impl StackValue {
                 Box::from(a.replace_parent_call(extended_stack, extended_memory)),
                 Box::from(b.replace_parent_call(extended_stack, extended_memory)),
             ),
+            StackValue::Mul(a, b) => StackValue::Mul(
+                Box::from(a.replace_parent_call(extended_stack, extended_memory)),
+                Box::from(b.replace_parent_call(extended_stack, extended_memory)),
+            ),
+            StackValue::Sha3(v) => {
+                let mut v2 = Vec::new();
+                for item in v {
+                    v2.push((
+                        item.0,
+                        item.1.replace_parent_call(extended_stack, extended_memory),
+                    ));
+                }
+                StackValue::Sha3(v2)
+            }
             _ => self.clone(),
         }
     }

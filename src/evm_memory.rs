@@ -27,10 +27,10 @@ impl EvmMemory {
             }
         }
         self.actual_memory.push((offset, value, length));
-        self.print_memory();
+        //self.print_memory();
     }
     pub fn retrive(&self, offset: StackValue, _: StackValue) -> Option<StackValue> {
-        self.print_memory();
+        //self.print_memory();
         for el in self.actual_memory.iter().rev() {
             if el.0 == offset {
                 return Some(el.1.clone());
@@ -39,8 +39,8 @@ impl EvmMemory {
         None
     }
     /// Attempt to retrive more than one consecutive memory position; this is only possible if the memory offsets and lengths can be resolved as U256
-    /* pub fn retrive_array(&self, offset: U256, length: U256) -> Vec<(usize, StackValue)> {
-        self.print_memory();
+    pub fn retrive_array(&self, offset: U256, length: U256) -> Vec<(usize, StackValue)> {
+        //self.print_memory();
         let mut vector: Vec<(usize, StackValue)> = Vec::new();
         for el in self.actual_memory.iter().rev() {
             let pos = if let Some(x) = el.0.resolve() {
@@ -58,7 +58,7 @@ impl EvmMemory {
             }
         }
         vector
-    }*/
+    }
 
     pub fn print_memory(&self) {
         print!("\x1b[0;31mMEMORY:",);
@@ -86,32 +86,52 @@ impl EvmStack {
             calee_edits: Vec::new(),
         }
     }
-    fn previous_get(&self, position: usize) -> StackValue {
-        for edit in &self.calee_edits {
+    fn previous_pop(&mut self, position: usize) -> StackValue {
+        let mut ret = StackValue::StackPaceHolder(position);
+        let mut remindex = None;
+        for (index, edit) in self.calee_edits.iter().enumerate() {
             if edit.0 == position {
-                return edit.1.clone();
+                ret = edit.1.clone();
+                remindex = Some(index);
             }
         }
-        StackValue::StackPaceHolder(position)
+        if let Some(i) = remindex {
+            self.calee_edits.remove(i);
+        }
+        ret
+    }
+    fn previous_clone(&self, position: usize) -> StackValue {
+        let mut ret = StackValue::StackPaceHolder(position);
+        for (index, edit) in self.calee_edits.iter().enumerate() {
+            if edit.0 == position {
+                ret = edit.1.clone();
+            }
+        }
+        ret
     }
     pub fn pop(&mut self) -> StackValue {
         if let Some(v) = self.stack.pop() {
             v
         } else {
             self.deficit += 1;
-            self.previous_get(self.deficit)
+            self.previous_pop(self.deficit)
         }
     }
     pub fn push(&mut self, value: StackValue) {
-        self.stack.push(value);
+        if self.deficit <= 0 {
+            self.stack.push(value);
+        } else {
+            self.calee_edits.push((self.deficit, value));
+            self.deficit -= 1;
+        }
     }
     pub fn clone_pos(&self, position: usize) -> StackValue {
-        if position < self.stack.len() {
+        if position <= self.stack.len() {
             let pointer = self.stack.get(self.stack.len() - position).unwrap();
             (*pointer).clone()
         } else {
-            let deficit = position - self.stack.len() + 1;
-            self.previous_get(self.deficit + deficit)
+            let deficit = position - self.stack.len();
+            self.previous_clone(self.deficit + deficit)
         }
     }
     pub fn swap(&mut self, i: usize) {
@@ -120,10 +140,11 @@ impl EvmStack {
             self.stack.swap(len, len - i);
         } else {
             let el1 = self.pop();
-            let pre = i - self.stack.len() + 1;
-            let el2 = self.previous_get(self.deficit + pre);
+            let pre = i - self.stack.len();
+            let st_deficit = self.deficit;
+            let el2 = self.previous_pop(st_deficit + pre);
             self.push(el2);
-            self.calee_edits.push((self.deficit + pre, el1));
+            self.calee_edits.push((st_deficit + pre, el1));
         }
     }
 }
@@ -133,6 +154,7 @@ impl fmt::Display for EvmStack {
         let c1 = "\x1b[0;32m";
         let c2 = "\x1b[0;37m";
         let mut buffer = String::new();
+        buffer += &format!("[[{}]]", self.deficit)[..];
         for (counter, item) in self.stack.iter().enumerate() {
             if counter % 2 == 0 {
                 buffer += &format!("{}{:?}//", c1, item)[..];

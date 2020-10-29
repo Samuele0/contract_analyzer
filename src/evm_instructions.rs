@@ -153,7 +153,7 @@ impl<'a> EvmFunction<'a> {
         }
     }
     pub fn log_operation(&self, name: &str) {
-        println!("{}\t\x1b[0;34m{}\t{}\x1b[0m", self.pc, name, self.stack);
+        //println!("{}\t\x1b[0;34m{}\t{}\x1b[0m", self.pc, name, self.stack);
     }
 
     /* Instructions */
@@ -322,7 +322,7 @@ impl<'a> EvmFunction<'a> {
     }
     pub fn sha3(&mut self) {
         self.log_operation("SHA3");
-        /*let op1 = self.stack.pop();
+        let op1 = self.stack.pop();
         let op2 = self.stack.pop();
         /*let value= self.memory.retrive_actual(op1, op2);
         let mut hasher= Keccak256::new();
@@ -331,7 +331,7 @@ impl<'a> EvmFunction<'a> {
         let value = self
             .memory
             .retrive_array(op1.resolve().unwrap(), op2.resolve().unwrap());
-        self.stack.push(Sha3(value));*/
+        self.stack.push(Sha3(value));
     }
     pub fn address(&mut self) {
         self.log_operation("ADDRESS");
@@ -378,7 +378,7 @@ impl<'a> EvmFunction<'a> {
     }
     pub fn codecopy(&mut self) {
         self.log_operation("CODECOPY");
-        /*let dest_offset = self.stack.pop();
+        let dest_offset = self.stack.pop();
         let code_offset = self.stack.pop();
         let length = self.stack.pop();
         let length2 = length.clone();
@@ -395,7 +395,7 @@ impl<'a> EvmFunction<'a> {
             }
         }
         value = CodeCopy(Box::from(code_offset), Box::from(length));
-        self.memory.store(dest_offset, value, length2);*/
+        self.memory.store(dest_offset, value, length2);
     }
     pub fn gasprice(&mut self) {
         self.log_operation("GASPRICE");
@@ -495,16 +495,14 @@ impl<'a> EvmFunction<'a> {
     pub fn sload(&mut self, cycle_solver: &mut dyn CycleSolver) {
         self.log_operation("SLOAD");
         let op1 = self.stack.pop();
-        let top = cycle_solver.get_data(&op1);
-        self.stack.push(SLoad(Box::from(top.value())));
-        self.storage_access_read.insert(top);
+        self.stack.push(SLoad(Box::from(op1.clone())));
+        self.storage_access_read.insert(op1);
     }
     pub fn sstore(&mut self, cycle_solver: &mut dyn CycleSolver) {
         self.log_operation("SSTORE");
         let storage = self.stack.pop();
         self.stack.pop();
-        let top = cycle_solver.get_data(&storage);
-        self.storage_access_write.insert(top);
+        self.storage_access_write.insert(storage);
     }
     pub fn jump(&mut self) {
         self.log_operation("JUMP");
@@ -517,7 +515,7 @@ impl<'a> EvmFunction<'a> {
         let jmp_address = self.stack.pop();
         self.ended = true;
         self.internal_calls
-            .push((jmp_address, self.stack.clone(), self.memory.clone()))
+            .push((jmp_address, self.stack.clone(), self.memory.clone(), None))
     }
     pub fn jumpi(&mut self) {
         self.log_operation("JUMPI");
@@ -534,9 +532,12 @@ impl<'a> EvmFunction<'a> {
         self.execution_list.push_back(other);*/
         let jmp_address = self.stack.pop();
         let condition = self.stack.pop();
-        println!("jumping to {:?}", jmp_address);
-        self.internal_calls
-            .push((jmp_address, self.stack.clone(), self.memory.clone()));
+        self.internal_calls.push((
+            jmp_address,
+            self.stack.clone(),
+            self.memory.clone(),
+            Some(condition),
+        ));
     }
     pub fn pc(&mut self) {
         self.log_operation("PC");
