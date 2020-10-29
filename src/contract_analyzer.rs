@@ -96,7 +96,7 @@ pub fn analyze_contract(code: &[u8]) -> Option<ContractData> {
         false,
         &cycle_solver,
         &mut storage,
-        vec![0]
+        vec![0],
     );
 
     //get return value
@@ -110,7 +110,8 @@ pub fn analyze_contract(code: &[u8]) -> Option<ContractData> {
             //println!("ANALYZING FUNCTION {}", f_loc);
             let mut evm_func = EvmFunction::new(f_loc, code);
             evm_func.execute(&mut cycle_solver);
-            //println!("Function calls: {:?}", evm_func.internal_calls);
+            //println!("Function details: {:?}", evm_func);
+
             registry.analyzed.insert(f_loc, evm_func);
         }
         let start = &registry.analyzed[&0];
@@ -163,6 +164,7 @@ pub fn resolve_function_storage(
         contract_method.push_write_location(cycle_solver.get_data(&resolved));
     }
     // Resolve external calls
+    //println!("EXTERNALS: {:?}", node.external_calls);
     for read_access in &node.external_calls {
         //println!("Resolving external call: {:?}", read_access);
         let mut resolved_address = read_access.0.clone();
@@ -244,10 +246,7 @@ pub fn resolve_return_node(
             replaced_start = replaced_start.replace_parent_call(parent.0, parent.1);
             replaced_length = replaced_length.replace_parent_call(parent.0, parent.1);
         }
-        /*println!(
-            "Looking for data in {:?} long {:?}",
-            replaced_start, replaced_length
-        );*/
+
         if let Some(x) = node
             .memory
             .retrive(replaced_start.clone(), replaced_length.clone())

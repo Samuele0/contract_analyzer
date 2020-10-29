@@ -600,8 +600,10 @@ impl<'a> EvmFunction<'a> {
         let op6 = self.stack.pop();
         let op7 = self.stack.pop();
         let mem_value = self.memory.retrive(offset.clone(), mem_length.clone());
+        //println!("INSERTING INTO CALL");
         self.external_calls
             .insert((address.clone(), mem_value.unwrap()));
+        //println!("{:?}", self.external_calls);
         self.stack.push(Call(
             Box::from(op1),
             Box::from(address),
@@ -668,10 +670,6 @@ impl<'a> EvmFunction<'a> {
     }
     pub fn revert(&mut self) {
         self.log_operation("REVERT");
-        // Revert all changes
-        self.storage_access_read = HashSet::new();
-        self.storage_access_write = HashSet::new();
-        self.external_calls = HashSet::new();
         self.ended = true;
     }
     pub fn selfdestruct(&mut self) {

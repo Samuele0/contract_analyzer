@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 ///
 ///  ### Exemple
 ///
+#[derive(Debug)]
 pub struct EvmFunction<'a> {
     /// Where this function starts; should be a `JUMPDEST` or the beginning of the code
     pub position: usize,
@@ -74,7 +75,6 @@ impl<'a> EvmFunction<'a> {
         }
     }
 }
-
 pub struct FunctionRegistry<'a> {
     pub analyzed: HashMap<usize, EvmFunction<'a>>,
     pub in_analysis: Vec<usize>,
