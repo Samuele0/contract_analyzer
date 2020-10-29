@@ -156,10 +156,24 @@ impl StackValue {
         match self {
             StackValue::StackPaceHolder(a) => extended_stack.clone_pos(*a),
             StackValue::MemoryPlaceHolder(a, b) => {
-                if let Some(v) = extended_memory.retrive(*a.clone(), *b.clone()) {
+                if let Some(v) = extended_memory.retrive(
+                    a.replace_parent_call(extended_stack, extended_memory)
+                        .clone(),
+                    b.replace_parent_call(extended_stack, extended_memory)
+                        .clone(),
+                ) {
                     v
                 } else {
-                    self.clone()
+                    StackValue::MemoryPlaceHolder(
+                        Box::from(
+                            a.replace_parent_call(extended_stack, extended_memory)
+                                .clone(),
+                        ),
+                        Box::from(
+                            b.replace_parent_call(extended_stack, extended_memory)
+                                .clone(),
+                        ),
+                    )
                 }
             }
             StackValue::Add(a, b) => StackValue::Add(

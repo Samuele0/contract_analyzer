@@ -29,14 +29,17 @@ impl EvmMemory {
         self.actual_memory.push((offset, value, length));
         //self.print_memory();
     }
-    pub fn retrive(&self, offset: StackValue, _: StackValue) -> Option<StackValue> {
+    pub fn retrive(&self, offset: StackValue, l: StackValue) -> Option<StackValue> {
         //self.print_memory();
         for el in self.actual_memory.iter().rev() {
             if el.0 == offset {
                 return Some(el.1.clone());
             }
         }
-        None
+        Some(StackValue::MemoryPlaceHolder(
+            Box::from(offset),
+            Box::from(l),
+        ))
     }
     /// Attempt to retrive more than one consecutive memory position; this is only possible if the memory offsets and lengths can be resolved as U256
     pub fn retrive_array(&self, offset: U256, length: U256) -> Vec<(usize, StackValue)> {
