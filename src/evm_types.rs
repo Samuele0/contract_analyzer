@@ -194,6 +194,9 @@ impl StackValue {
                 }
                 StackValue::Sha3(v2)
             }
+            StackValue::CallDataLoad(v) => StackValue::CallDataLoad(Box::from(
+                v.replace_parent_call(extended_stack, extended_memory),
+            )),
             _ => self.clone(),
         }
     }
