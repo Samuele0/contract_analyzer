@@ -20,6 +20,12 @@ impl ContractData {
             methods: HashMap::new(),
         }
     }
+    pub fn construct(constructor: ContractMethod, methods: HashMap<U256, ContractMethod>) -> Self {
+        ContractData {
+            constructor,
+            methods,
+        }
+    }
     ///
     /// Returns or creates the method with corrisponding hash
     ///
@@ -61,15 +67,33 @@ impl ContractMethod {
         self.storage_write.extend(access);
     }
     ///
+    /// Adds a storage location that will be written during the execution of the method
+    ///
+    pub fn push_write_location(&mut self, access: DataType) {
+        self.storage_write.insert(access);
+    }
+    ///
     /// Adds storage locations that will be read during the execution of the method
     ///
     pub fn access_read(&mut self, access: HashSet<DataType>) {
         self.storage_read.extend(access);
     }
     ///
+    /// Adds a storage location that will be read during the execution of the method
+    ///
+    pub fn push_read_location(&mut self, access: DataType) {
+        self.storage_read.insert(access);
+    }
+    ///
     /// Adds external method calls that will be executed in this method
     ///
     pub fn method_calls(&mut self, access: HashSet<(StackValue, StackValue)>) {
         self.method_call.extend(access);
+    }
+    ///
+    ///  Adds an external method call that will be executed in this method
+    ///
+    pub fn push_external_call(&mut self, access: (StackValue, StackValue)) {
+        self.method_call.insert(access);
     }
 }

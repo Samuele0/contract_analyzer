@@ -1,4 +1,6 @@
+use crate::evm_memory::{EvmMemory, EvmStack};
 use ethereum_types::U256;
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum StackValue {
     ActualValue(U256),
@@ -98,13 +100,24 @@ pub enum StackValue {
         Box<StackValue>,
     ),
     CodeSection(Vec<u8>),
+
+    /// Placeholder for stack value caming from function callee
+    StackPaceHolder(usize),
+    MemoryPlaceHolder(Box<StackValue>, Box<StackValue>),
 }
 
 impl StackValue {
     pub fn resolve(&self) -> Option<U256> {
         match self {
             StackValue::ActualValue(x) => Some(*x),
-            StackValue::Add(x, y) => self.resolve_sum(*x.clone(), *y.clone()),
+            StackValue::Add(a, b) => {
+                if let Some(x) = a.resolve() {
+                    if let Some(y) = b.resolve() {
+                        return Some(x + y);
+                    }
+                }
+                None
+            }
             StackValue::CodeSection(x) => Some(U256::from(&x[..])),
             StackValue::ShL(a, b) => {
                 if let Some(x) = b.resolve() {
@@ -122,7 +135,7 @@ impl StackValue {
                 }
                 None
             }
-            StackValue::And(a,b) => {
+            StackValue::And(a, b) => {
                 if let Some(x) = b.resolve() {
                     if let Some(y) = a.resolve() {
                         return Some(x & y);
@@ -133,13 +146,55 @@ impl StackValue {
             _ => None,
         }
     }
-    fn resolve_sum(&self, x: StackValue, y: StackValue) -> Option<U256> {
-        let op1 = x.resolve();
-        let op2 = y.resolve();
-        if op1 == None || op2 == None {
-            None
-        } else {
-            Some(op1.unwrap() + op2.unwrap())
+
+    /// Replace PlaceHolders with actual values
+    pub fn replace_parent_call(
+        &self,
+        extended_stack: &EvmStack,
+        extended_memory: &EvmMemory,
+    ) -> StackValue {
+        match self {
+            StackValue::StackPaceHolder(a) => extended_stack.clone_pos(*a),
+            StackValue::MemoryPlaceHolder(a, b) => {
+                if let Some(v) = extended_memory.retrive(
+                    a.replace_parent_call(extended_stack, extended_memory)
+                        .clone(),
+                    b.replace_parent_call(extended_stack, extended_memory)
+                        .clone(),
+                ) {
+                    v
+                } else {
+                    StackValue::MemoryPlaceHolder(
+                        Box::from(
+                            a.replace_parent_call(extended_stack, extended_memory)
+                                .clone(),
+                        ),
+                        Box::from(
+                            b.replace_parent_call(extended_stack, extended_memory)
+                                .clone(),
+                        ),
+                    )
+                }
+            }
+            StackValue::Add(a, b) => StackValue::Add(
+                Box::from(a.replace_parent_call(extended_stack, extended_memory)),
+                Box::from(b.replace_parent_call(extended_stack, extended_memory)),
+            ),
+            StackValue::Mul(a, b) => StackValue::Mul(
+                Box::from(a.replace_parent_call(extended_stack, extended_memory)),
+                Box::from(b.replace_parent_call(extended_stack, extended_memory)),
+            ),
+            StackValue::Sha3(v) => {
+                let mut v2 = Vec::new();
+                for item in v {
+                    v2.push((
+                        item.0,
+                        item.1.replace_parent_call(extended_stack, extended_memory),
+                    ));
+                }
+                StackValue::Sha3(v2)
+            }
+            _ => self.clone(),
         }
     }
 }

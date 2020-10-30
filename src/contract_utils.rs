@@ -1,8 +1,9 @@
-use crate::evm_execution::EvmExecution;
+//use crate::evm_execution::EvmExecution;
+use crate::evm_function::{EvmFunction, FunctionRegistry};
+use crate::evm_memory::{EvmMemory, EvmStack};
 use crate::evm_types::StackValue;
 use crate::evm_types::StackValue::*;
 use ethereum_types::U256;
-
 ///Type of data that can be present in the contract storage
 #[derive(Debug, Hash, Eq, Clone, PartialEq)]
 pub enum DataType {
@@ -26,21 +27,19 @@ impl DataType {
 }
 
 /// Return the root public method which this execution belongs to;
-pub fn get_pubblic_method(execution: &EvmExecution) -> Option<U256> {
-    for guard in &execution.guards {
-        if let EQ(a, b) = guard {
-            // Method guards allways start with eq
-            if let ActualValue(x) = **a {
-                let hash = x;
-                if look_for_calldata(&*b) {
-                    return Some(hash);
-                }
+pub fn get_pubblic_method(guard: &StackValue) -> Option<U256> {
+    if let EQ(a, b) = guard {
+        // Method guards allways start with eq
+        if let ActualValue(x) = **a {
+            let hash = x;
+            if look_for_calldata(&*b) {
+                return Some(hash);
             }
-            if let ActualValue(x) = **b {
-                let hash = x;
-                if look_for_calldata(&*a) {
-                    return Some(hash);
-                }
+        }
+        if let ActualValue(x) = **b {
+            let hash = x;
+            if look_for_calldata(&*a) {
+                return Some(hash);
             }
         }
     }
@@ -108,3 +107,59 @@ pub fn top_level_data(expr: &StackValue) -> DataType {
         _ => DataType::Unknown(expr.clone()),
     }
 }
+/*/// tries to recursivly resolve unknown jump locations
+pub fn resolve_parent_calls(
+    stack: &EvmStack,
+    memory: &EvmMemory,
+    resolve_list: Vec<(EvmStack, EvmMemory, StackValue)>,
+    registry: &mut FunctionRegistry,
+) -> (Vec<usize>, Vec<StackValue>, Vec<usize>) {
+    let mut resolved_vector = Vec::<usize>::new();
+    let mut unresolved_vector = Vec::<StackValue>::new();
+    let mut unanalized_vector = Vec::<usize>::new();
+    for call in &resolve_list {
+        let to_resolve = call.2;
+        let replaced = to_resolve.replace_parent_call(stack, memory);
+        let resolved = replaced.resolve();
+        if let Some(addr) = resolved {
+            let f = registry.get_from_address(addr.as_usize());
+            if let Some(func) = f {
+                resolved_vector.push(addr.as_usize());
+                let ret = resolve_parent_calls(
+                    &call.0,
+                    &call.1,
+                    func.internal_unresolved_calls,
+                    registry,
+                );
+                resolved_vector.extend(ret.0);
+                for unresolved in ret.1 {
+                    let replaced2 = unresolved.replace_parent_call(stack, memory);
+                    if let Some(x) = replaced.resolve() {
+                        let f2 = registry.get_from_address(x.as_usize());
+                        if let Some(func2) = f2 {
+                            let ret = resolve_parent_calls(
+                                stack,
+                                memory,
+                                func2.internal_unresolved_calls,
+                                registry,
+                            );
+                            resolved_vector.extend(ret.0);
+                            unresolved_vector.extend(ret.1);
+                            unanalized_vector.extend(ret.2);
+                        } else {
+                            unanalized_vector.push(x.as_usize())
+                        }
+                    } else {
+                        unresolved_vector.push(replaced2);
+                    }
+                }
+            } else {
+                unanalized_vector.push(addr.as_usize());
+            }
+        } else {
+            unresolved_vector.push(replaced);
+        }
+    }
+    return (resolved_vector, unresolved_vector, unanalized_vector);
+}
+*/

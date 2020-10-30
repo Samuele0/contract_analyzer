@@ -3,11 +3,19 @@ extern crate ethereum_types;
 pub mod contract_analyzer;
 pub mod contract_data;
 pub mod contract_utils;
-pub mod evm_execution;
+//pub mod evm_execution;
+pub mod evm_function;
+pub mod evm_instructions;
 pub mod evm_memory;
 pub mod evm_types;
-pub mod net;
+//pub mod net;
+pub mod cycle_resolution;
 
+/*macro_rules! u56 {
+    (a:$expr) => {
+        U256::from(a);
+    };
+}*/
 #[cfg(test)]
 mod tests {
     use crate::contract_analyzer::analyze_contract;
@@ -16,18 +24,35 @@ mod tests {
     use std::time::Instant;
 
     fn test_code_s(code: &[u8]) {
-        let time = Instant::now();
+        let data = analyze_contract(code);
+        data.unwrap().display();
+        benchmark(code)
+    }
+    fn benchmark(code: &[u8]) {
         let len = code.len();
-        analyze_contract(code);
-        let elapsed = time.elapsed();
-        println!("Bytes: {}, time:{}", len, elapsed.as_nanos())
+        let mut timings = Vec::new();
+
+        for _ in 1..10 {
+            let time = Instant::now();
+            analyze_contract(code);
+            let elapsed = time.elapsed();
+            timings.push(elapsed.as_nanos());
+        }
+
+        let sum = timings.iter().sum::<u128>();
+        let mean = sum as f64 / timings.len() as f64;
+        let variance = timings
+            .iter()
+            .map(|value| {
+                let diff = mean - *value as f64;
+                diff * diff
+            })
+            .sum::<f64>()
+            / timings.len() as f64;
+        println!("MEAN: {}, STD DEVIATION: {}", mean, variance.sqrt());
     }
     fn test_code(code: Vec<u8>) {
-        let time = Instant::now();
-        let len = code.len();
-        analyze_contract(&code[..]);
-        let elapsed = time.elapsed();
-        println!("Bytes: {}, time:{}", len, elapsed.as_nanos())
+        test_code_s(&code[..])
     }
     #[test]
     fn simple_contract() {
@@ -571,5 +596,4 @@ mod tests {
         ];
         test_code(code)
     }
-   
 }
