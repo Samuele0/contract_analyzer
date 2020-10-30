@@ -1,7 +1,5 @@
-use crate::contract_utils::DataType;
 use crate::evm_memory::{EvmMemory, EvmStack};
 use crate::evm_types::StackValue;
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
 /// A Self contained block of instructions in the evm bytecode

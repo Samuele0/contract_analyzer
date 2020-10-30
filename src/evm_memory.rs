@@ -67,15 +67,12 @@ impl EvmMemory {
         print!("\x1b[0;31mMEMORY:",);
         let c1 = "\x1b[0;31m";
         let c2 = "\x1b[0;37m";
-        let mut counter = 0;
-        let mut buffer = String::new();
-        for item in &self.actual_memory {
+        for (counter, item) in self.actual_memory.iter().enumerate() {
             if counter % 2 == 0 {
                 print!("{}{:?}//", c1, item);
             } else {
                 print!("{}{:?}//", c2, item);
             }
-            counter += 1;
         }
         print!("\x1b[0m\n")
     }
@@ -105,7 +102,7 @@ impl EvmStack {
     }
     fn previous_clone(&self, position: usize) -> StackValue {
         let mut ret = StackValue::StackPaceHolder(position);
-        for (index, edit) in self.calee_edits.iter().enumerate() {
+        for (_index, edit) in self.calee_edits.iter().enumerate() {
             if edit.0 == position {
                 ret = edit.1.clone();
             }
@@ -121,7 +118,7 @@ impl EvmStack {
         }
     }
     pub fn push(&mut self, value: StackValue) {
-        if self.deficit <= 0 {
+        if self.deficit == 0 {
             self.stack.push(value);
         } else {
             self.calee_edits.push((self.deficit, value));

@@ -1,6 +1,5 @@
 //use crate::evm_execution::EvmExecution;
-use crate::evm_function::{EvmFunction, FunctionRegistry};
-use crate::evm_memory::{EvmMemory, EvmStack};
+
 use crate::evm_types::StackValue;
 use crate::evm_types::StackValue::*;
 use ethereum_types::U256;

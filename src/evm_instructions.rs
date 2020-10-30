@@ -2,7 +2,6 @@ use crate::cycle_resolution::CycleSolver;
 use crate::evm_function::EvmFunction;
 use crate::evm_types::{StackValue, StackValue::*};
 use ethereum_types::U256;
-use std::collections::HashSet;
 impl<'a> EvmFunction<'a> {
     pub fn execute(&mut self, cycle_solver: &mut dyn CycleSolver) {
         while !self.ended {
@@ -152,7 +151,7 @@ impl<'a> EvmFunction<'a> {
             self.pc += 1;
         }
     }
-    pub fn log_operation(&self, name: &str) {
+    pub fn log_operation(&self, _name: &str) {
         //println!("{}\t\x1b[0;34m{}\t{}\x1b[0m", self.pc, name, self.stack);
     }
 
@@ -492,13 +491,13 @@ impl<'a> EvmFunction<'a> {
         let op2 = self.stack.pop();
         self.memory.store(op1, op2, ActualValue(U256::from(1)));
     }
-    pub fn sload(&mut self, cycle_solver: &mut dyn CycleSolver) {
+    pub fn sload(&mut self, _cycle_solver: &mut dyn CycleSolver) {
         self.log_operation("SLOAD");
         let op1 = self.stack.pop();
         self.stack.push(SLoad(Box::from(op1.clone())));
         self.storage_access_read.insert(op1);
     }
-    pub fn sstore(&mut self, cycle_solver: &mut dyn CycleSolver) {
+    pub fn sstore(&mut self, _cycle_solver: &mut dyn CycleSolver) {
         self.log_operation("SSTORE");
         let storage = self.stack.pop();
         self.stack.pop();
