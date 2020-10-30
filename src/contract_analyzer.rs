@@ -11,7 +11,7 @@ pub fn analyze_contract(code: &[u8]) -> ContractData {
     let mut contract = ContractData::new();
 
     while !executions.is_empty() {
-        let mut exe = executions.pop_front().unwrap();
+        let mut exe = executions.pop_back().unwrap();
         exe.execute();
         executions.append(&mut exe.execution_list);
         // Check if the runtime code has been returned
@@ -63,6 +63,5 @@ pub fn analyze_contract(code: &[u8]) -> ContractData {
         }
     }
     // Display the contract
-    contract.display();
     contract
 }
