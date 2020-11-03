@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 ///
 ///  ### Exemple
 ///
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EvmFunction<'a> {
     /// Where this function starts; should be a `JUMPDEST` or the beginning of the code
     pub position: usize,

@@ -9,8 +9,9 @@ pub mod evm_function;
 pub mod evm_instructions;
 pub mod evm_memory;
 pub mod evm_types;
+pub mod expression_simplifier;
+pub mod function_analyzer;
 pub mod net;
-
 /*macro_rules! u56 {
     (a:$expr) => {
         U256::from(a);
@@ -18,13 +19,13 @@ pub mod net;
 }*/
 #[cfg(test)]
 mod tests {
-    use crate::contract_analyzer::analyze_contract;
+    use crate::contract_analyzer::analyze_contract_default;
     use std::fs::File;
     use std::io::prelude::*;
     use std::time::Instant;
 
     fn test_code_s(code: &[u8]) {
-        let data = analyze_contract(code);
+        let data = analyze_contract_default(code);
         data.unwrap().display();
         //benchmark(code)
     }
@@ -34,7 +35,7 @@ mod tests {
 
         for _ in 1..10 {
             let time = Instant::now();
-            analyze_contract(code);
+            analyze_contract_default(code);
             let elapsed = time.elapsed();
             timings.push(elapsed.as_nanos());
         }
