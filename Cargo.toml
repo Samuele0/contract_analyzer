@@ -8,5 +8,5 @@ edition = "2018"
 [dependencies]
 ethereum-types = "*"
 z3 = { version = "0.6.0", features = ["static-link-z3"] }
-threadpool="*"
-scoped_threadpool ="*"
+threadpool = "*"
+scoped_threadpool = "*"

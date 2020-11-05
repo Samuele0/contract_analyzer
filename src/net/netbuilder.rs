@@ -1,17 +1,22 @@
-use super::transaction::{MethodType, Transaction, TransactionDataProvider};
+use super::transaction::{
+    ChainStateProvider, MethodType, RunningFunction, Transaction, TransactionDataProvider,
+};
 use crate::contract_data::{ContractData, ContractMethod};
 use ethereum_types::U256;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+
 pub struct NetBuilder {
     contracts: HashMap<U256, ContractStorage>,
     contract_data: HashMap<U256, ContractData>,
     counter: usize,
+    /// How many dependencies can we assume before delegating to runtime
+    pub threshold: usize,
 }
-struct ContractStorage {
-    storage_write: HashMap<U256, Vec<Arc<RefCell<Transaction>>>>,
-    storage_read: HashMap<U256, Vec<Arc<RefCell<Transaction>>>>,
+pub struct ContractStorage {
+    pub storage_write: HashMap<U256, Vec<Arc<Mutex<Transaction>>>>,
+    pub storage_read: HashMap<U256, Vec<Arc<Mutex<Transaction>>>>,
 }
 impl ContractStorage {
     fn new() -> Self {
@@ -22,7 +27,7 @@ impl ContractStorage {
     }
 }
 
-// TODO: add dependencies to contructors
+// TODO: add dependencies to constructors
 
 impl NetBuilder {
     pub fn new() -> Self {
@@ -30,6 +35,7 @@ impl NetBuilder {
             contracts: HashMap::new(),
             contract_data: HashMap::new(),
             counter: 0,
+            threshold: 10,
         }
     }
     pub fn register_contract(&mut self, address: U256, contract: ContractData) {
@@ -37,7 +43,11 @@ impl NetBuilder {
         self.contract_data.insert(address, contract);
     }
 
-    pub fn new_transaction(&mut self, transaction_data: &dyn TransactionDataProvider) {
+    pub fn new_transaction(
+        &mut self,
+        transaction_data: &dyn TransactionDataProvider,
+        run: RunningFunction,
+    ) {
         // Retrive Transaction Informations
         let contract = transaction_data.get_target_contract();
         let method = transaction_data.get_target_method();
@@ -48,7 +58,7 @@ impl NetBuilder {
         };
 
         // Create the transaction
-        let transaction = Arc::from(RefCell::from(Transaction::new(self.counter)));
+        let transaction = Arc::from(Mutex::from(Transaction::new(self.counter, run)));
         self.counter += 1;
         let mut methods_to_analyze = vec![(contract, method_data)];
         let mut methods_analyzed = vec![]; // Keep a list of analyzed methods to avoid cycles
@@ -68,20 +78,27 @@ impl NetBuilder {
             // Resolve external Calls
             for call in &method_data.1.method_call {
                 let contract_addr = call.0.resolve();
-                let method = call.1.resolve().unwrap();
-                if let Some(c) = contract_addr {
-                    // If we can resolve the contract hash
-                    let new_method = &self.contract_data[&c].methods[&method];
-                    methods_to_analyze.push((c, new_method));
-                } else {
-                    // Otherwise add dependency to all
-                    // Look for contracts with compatible methods
-                    for c in &self.contract_data {
-                        for m in &c.1.methods {
-                            if *m.0 == method {
-                                // If they have the same signature
-                                methods_to_analyze.push((*c.0, m.1))
+                let method_opt = call.1.resolve();
+                if let Some(method) = method_opt {
+                    if let Some(c) = contract_addr {
+                        // If we can resolve the contract hash
+                        let new_method = &self.contract_data[&c].methods[&method];
+                        methods_to_analyze.push((c, new_method));
+                    } else {
+                        let mut compatible = Vec::new();
+                        // Otherwise add dependency to all
+                        // Look for contracts with compatible methods
+                        for c in &self.contract_data {
+                            for m in &c.1.methods {
+                                if *m.0 == method {
+                                    // If they have the same signature
+                                    compatible.push((*c.0, m.1))
+                                }
                             }
+                        }
+                        if compatible.len() < self.threshold {
+                            methods_to_analyze.extend(compatible);
+                        } else {
                         }
                     }
                 }
@@ -92,7 +109,7 @@ impl NetBuilder {
     fn analyze_method(
         method_data: &ContractMethod,
         contract: &mut ContractStorage,
-        transaction: &Arc<RefCell<Transaction>>,
+        transaction: &Arc<Mutex<Transaction>>,
     ) {
         for access in &method_data.storage_read {
             // TODO: Replace resolve
@@ -102,7 +119,7 @@ impl NetBuilder {
                 // If there are transactions writing to this locations
                 for trans in list {
                     // Add these transactions as dependencies
-                    trans.borrow_mut().required_by(transaction.clone());
+                    trans.lock().unwrap().required_by(transaction.clone());
                 }
             }
             let map = &mut contract.storage_read;
@@ -120,15 +137,15 @@ impl NetBuilder {
             if let Some(list) = current {
                 // If there are transactions writing to this locations
                 for trans in list {
-                    let id1 = trans.borrow().id;
-                    if id1 != transaction.borrow().id {
+                    let id1 = trans.lock().unwrap().id;
+                    if id1 != transaction.lock().unwrap().id {
                         println!(
                             "Adding dependency: ({})=>({})",
                             id1,
-                            transaction.borrow().id
+                            transaction.lock().unwrap().id
                         );
                         // Add these transactions as dependencies
-                        trans.borrow_mut().required_by(transaction.clone());
+                        trans.lock().unwrap().required_by(transaction.clone());
                     }
                 }
             }
@@ -137,16 +154,16 @@ impl NetBuilder {
             if let Some(list) = current {
                 // If there are transactions writing to this locations
                 for trans in list {
-                    let id1 = trans.borrow().id;
-                    if id1 != transaction.borrow().id {
+                    let id1 = trans.lock().unwrap().id;
+                    if id1 != transaction.lock().unwrap().id {
                         println!(
                             "Adding dependency: ({})=>({})",
                             id1,
-                            transaction.borrow().id
+                            transaction.lock().unwrap().id
                         );
 
                         // Add these transactions as dependencies
-                        trans.borrow_mut().required_by(transaction.clone());
+                        trans.lock().unwrap().required_by(transaction.clone());
                     }
                 }
             }
