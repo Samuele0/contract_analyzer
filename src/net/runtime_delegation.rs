@@ -8,6 +8,6 @@ use std::sync::Arc;
 pub struct RuntimeDelegationState {
     pub contract_data: HashMap<U256, ContractData>,
     pub contracts: HashMap<U256, ContractStorage>,
-    pub contracthash: StackValue,
-    pub methodhash: StackValue,
+    pub contracthash: U256,
+    pub methodhash: U256,
 }

@@ -1,3 +1,4 @@
+use super::runtime_delegation::RuntimeDelegationState;
 use super::transaction::{
     ChainStateProvider, MethodType, RunningFunction, Transaction, TransactionDataProvider,
 };
@@ -6,14 +7,16 @@ use ethereum_types::U256;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-
 pub struct NetBuilder {
     contracts: HashMap<U256, ContractStorage>,
     contract_data: HashMap<U256, ContractData>,
+    runtime_dependent: Vec<(U256, U256, Arc<Mutex<Transaction>>)>,
+    zero_deps: Vec<Arc<Mutex<Transaction>>>,
     counter: usize,
     /// How many dependencies can we assume before delegating to runtime
     pub threshold: usize,
 }
+#[derive(Clone)]
 pub struct ContractStorage {
     pub storage_write: HashMap<U256, Vec<Arc<Mutex<Transaction>>>>,
     pub storage_read: HashMap<U256, Vec<Arc<Mutex<Transaction>>>>,
@@ -34,6 +37,8 @@ impl NetBuilder {
         NetBuilder {
             contracts: HashMap::new(),
             contract_data: HashMap::new(),
+            runtime_dependent: Vec::new(),
+            zero_deps: Vec::new(),
             counter: 0,
             threshold: 10,
         }
@@ -59,6 +64,9 @@ impl NetBuilder {
 
         // Create the transaction
         let transaction = Arc::from(Mutex::from(Transaction::new(self.counter, run)));
+        for (c, m, trans) in &mut self.runtime_dependent {
+            trans.lock().unwrap().required_by(transaction.clone());
+        }
         self.counter += 1;
         let mut methods_to_analyze = vec![(contract, method_data)];
         let mut methods_analyzed = vec![]; // Keep a list of analyzed methods to avoid cycles
@@ -79,10 +87,10 @@ impl NetBuilder {
             for call in &method_data.1.method_call {
                 let contract_addr = call.0.resolve();
                 let method_opt = call.1.resolve();
-                if let Some(method) = method_opt {
+                if let Some(method_2) = method_opt {
                     if let Some(c) = contract_addr {
                         // If we can resolve the contract hash
-                        let new_method = &self.contract_data[&c].methods[&method];
+                        let new_method = &self.contract_data[&c].methods[&method_2];
                         methods_to_analyze.push((c, new_method));
                     } else {
                         let mut compatible = Vec::new();
@@ -90,7 +98,7 @@ impl NetBuilder {
                         // Look for contracts with compatible methods
                         for c in &self.contract_data {
                             for m in &c.1.methods {
-                                if *m.0 == method {
+                                if *m.0 == method_2 {
                                     // If they have the same signature
                                     compatible.push((*c.0, m.1))
                                 }
@@ -99,10 +107,30 @@ impl NetBuilder {
                         if compatible.len() < self.threshold {
                             methods_to_analyze.extend(compatible);
                         } else {
+                            self.runtime_dependent.push((
+                                contract,
+                                match method {
+                                    MethodType::Method(x) => x,
+                                    _ => U256::from(0),
+                                },
+                                transaction.clone(),
+                            ));
                         }
                     }
+                } else {
+                    self.runtime_dependent.push((
+                        contract,
+                        match method {
+                            MethodType::Method(x) => x,
+                            _ => U256::from(0),
+                        },
+                        transaction.clone(),
+                    ));
                 }
             }
+        }
+        if *transaction.lock().unwrap().count.lock().unwrap() == 0 {
+            self.zero_deps.push(transaction.clone())
         }
     }
 
@@ -173,5 +201,16 @@ impl NetBuilder {
             let read_location = map.entry(memory_address).or_insert_with(Vec::new);
             read_location.push(transaction.clone())
         }
+    }
+    pub fn finalize(mut self) -> Vec<Arc<Mutex<Transaction>>> {
+        for (c, m, trans) in &mut self.runtime_dependent {
+            trans.lock().unwrap().runtime = Some(RuntimeDelegationState {
+                contract_data: self.contract_data.clone(),
+                contracts: self.contracts.clone(),
+                contracthash: *c,
+                methodhash: *m,
+            });
+        }
+        self.zero_deps
     }
 }

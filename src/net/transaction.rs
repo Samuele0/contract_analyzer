@@ -10,10 +10,10 @@ pub trait ChainStateProvider {}
 
 pub struct Transaction {
     dependencies: Vec<Arc<Mutex<Transaction>>>,
-    count: Mutex<usize>,
+    pub count: Mutex<usize>,
     pub id: usize,
     runner: RunningFunction,
-    runtime: Option<RuntimeDelegationState>,
+    pub runtime: Option<RuntimeDelegationState>,
 }
 
 /// Bridge between library and client
@@ -81,8 +81,8 @@ impl Transaction {
     ) -> Vec<Arc<Mutex<Transaction>>> {
         let mut freed = Vec::new();
         if let Some(rs) = &mut self.runtime {
-            let contract = rs.contracthash.resolve().unwrap();
-            let method = rs.methodhash.resolve().unwrap();
+            let contract = rs.contracthash;
+            let method = rs.methodhash;
             let mut methods_to_prune = Vec::new();
 
             methods_to_prune.push((
