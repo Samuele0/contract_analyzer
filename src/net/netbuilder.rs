@@ -1,10 +1,7 @@
 use super::runtime_delegation::RuntimeDelegationState;
-use super::transaction::{
-    ChainStateProvider, MethodType, RunningFunction, Transaction, TransactionDataProvider,
-};
+use super::transaction::{MethodType, RunningFunction, Transaction, TransactionDataProvider};
 use crate::contract_data::{ContractData, ContractMethod};
 use ethereum_types::U256;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 pub struct NetBuilder {
@@ -18,6 +15,7 @@ pub struct NetBuilder {
 }
 #[derive(Clone)]
 pub struct ContractStorage {
+    pub contructor_transition: Option<Arc<Mutex<Transaction>>>,
     pub storage_write: HashMap<U256, Vec<Arc<Mutex<Transaction>>>>,
     pub storage_read: HashMap<U256, Vec<Arc<Mutex<Transaction>>>>,
 }
@@ -26,6 +24,7 @@ impl ContractStorage {
         ContractStorage {
             storage_write: HashMap::new(),
             storage_read: HashMap::new(),
+            contructor_transition: None,
         }
     }
 }
@@ -64,24 +63,36 @@ impl NetBuilder {
 
         // Create the transaction
         let transaction = Arc::from(Mutex::from(Transaction::new(self.counter, run)));
-        for (c, m, trans) in &mut self.runtime_dependent {
+        for (_, _, trans) in &mut self.runtime_dependent {
             trans.lock().unwrap().required_by(transaction.clone());
         }
         self.counter += 1;
         let mut methods_to_analyze = vec![(contract, method_data)];
         let mut methods_analyzed = vec![]; // Keep a list of analyzed methods to avoid cycles
+        let mut constructor_analyzed = vec![]; // Keep a list of analyzed contracts to avoid cycles on contructors
         if let MethodType::Method(x) = method {
             methods_analyzed.push((contract, x));
+        } else {
+            self.contracts
+                .get_mut(&contract)
+                .unwrap()
+                .contructor_transition = Some(transaction.clone());
+            constructor_analyzed.push(contract);
         }
         while !methods_to_analyze.is_empty() {
             let method_data = methods_to_analyze.pop().unwrap();
-
+            let contract_d = self.contracts.get_mut(&method_data.0).unwrap();
+            if !constructor_analyzed.contains(&method_data.0) {
+                contract_d
+                    .contructor_transition
+                    .as_ref()
+                    .unwrap()
+                    .lock()
+                    .unwrap()
+                    .required_by(transaction.clone());
+            }
             // Resolve dependencies for method access
-            Self::analyze_method(
-                method_data.1,
-                self.contracts.get_mut(&method_data.0).unwrap(),
-                &transaction,
-            );
+            Self::analyze_method(method_data.1, contract_d, &transaction);
 
             // Resolve external Calls
             for call in &method_data.1.method_call {
