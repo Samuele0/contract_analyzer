@@ -9,9 +9,10 @@ pub mod evm_function;
 pub mod evm_instructions;
 pub mod evm_memory;
 pub mod evm_types;
-pub mod expression_simplifier;
+//pub mod expression_simplifier;
 pub mod function_analyzer;
 pub mod net;
+pub mod expression_simplify_sys;
 /*macro_rules! u56 {
     (a:$expr) => {
         U256::from(a);

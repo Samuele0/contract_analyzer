@@ -139,7 +139,7 @@ impl Transaction {
         }
         freed
     }
-    pub fn run(&mut self, state_provider: Box<dyn ChainStateProvider>) {
+    pub fn run(&mut self) {
         (self.runner)()
     }
 }
