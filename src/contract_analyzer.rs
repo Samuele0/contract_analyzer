@@ -19,6 +19,13 @@ pub fn analyze_contract_default(code: &[u8]) -> Option<ContractData> {
         &(multi_threded_function_analyzer as FunctionAnalyzer),
     )
 }
+pub fn analyze_contract_single(code: &[u8]) -> Option<ContractData> {
+    analyze_contract(
+        code,
+        &NocycleSolver(),
+        &(single_threded_function_analyzer as FunctionAnalyzer),
+    )
+}
 
 pub fn analyze_contract(
     code: &[u8],

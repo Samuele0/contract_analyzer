@@ -10,9 +10,14 @@ pub mod evm_instructions;
 pub mod evm_memory;
 pub mod evm_types;
 //pub mod expression_simplifier;
+pub mod expression_simplify_sys;
 pub mod function_analyzer;
 pub mod net;
-pub mod expression_simplify_sys;
+
+pub use contract_analyzer::analyze_contract_default;
+pub use contract_data::ContractData;
+pub use net::netbuilder::NetBuilder;
+pub use net::transaction::{ChainStateProvider, RunningFunction, TransactionDataProvider};
 /*macro_rules! u56 {
     (a:$expr) => {
         U256::from(a);
@@ -20,7 +25,7 @@ pub mod expression_simplify_sys;
 }*/
 #[cfg(test)]
 mod tests {
-    use crate::contract_analyzer::analyze_contract_default;
+    use crate::contract_analyzer::{analyze_contract_default, analyze_contract_single};
     use std::fs::File;
     use std::io::prelude::*;
     use std::time::Instant;
@@ -28,13 +33,13 @@ mod tests {
     fn test_code_s(code: &[u8]) {
         let data = analyze_contract_default(code);
         data.unwrap().display();
-        //benchmark(code)
+        benchmark(code)
     }
     fn benchmark(code: &[u8]) {
         let len = code.len();
         let mut timings = Vec::new();
-
-        for _ in 1..10 {
+        println!("Size: {} bytes", len);
+        for _ in 1..100 {
             let time = Instant::now();
             analyze_contract_default(code);
             let elapsed = time.elapsed();
@@ -51,7 +56,35 @@ mod tests {
             })
             .sum::<f64>()
             / timings.len() as f64;
-        println!("MEAN: {}, STD DEVIATION: {}", mean, variance.sqrt());
+        println!(
+            "MULTITHREAD: MEAN: {}, STD DEVIATION: {}",
+            mean,
+            variance.sqrt()
+        );
+        let mut timings = Vec::new();
+
+        for _ in 1..100 {
+            let time = Instant::now();
+            analyze_contract_single(code);
+            let elapsed = time.elapsed();
+            timings.push(elapsed.as_nanos());
+        }
+
+        let sum = timings.iter().sum::<u128>();
+        let mean = sum as f64 / timings.len() as f64;
+        let variance = timings
+            .iter()
+            .map(|value| {
+                let diff = mean - *value as f64;
+                diff * diff
+            })
+            .sum::<f64>()
+            / timings.len() as f64;
+        println!(
+            "SINGLETHREAD MEAN: {}, STD DEVIATION: {}",
+            mean,
+            variance.sqrt()
+        );
     }
     fn test_code(code: Vec<u8>) {
         test_code_s(&code[..])
