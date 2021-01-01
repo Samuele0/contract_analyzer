@@ -1,11 +1,23 @@
 use super::netbuilder::NetBuilder;
-use super::tests::MockTransaction;
+use super::transaction::RunningFunction;
 use super::transaction::{MethodType, TransactionDataProvider};
 use crate::contract_data::{ContractData, ContractMethod};
 use crate::contract_utils::DataType;
 use crate::evm_types::StackValue;
 use ethereum_types::U256;
 use std::collections::HashSet;
+struct MockTransaction {
+    target: U256,
+    method: MethodType,
+}
+impl TransactionDataProvider for MockTransaction {
+    fn get_target_contract(&self) -> U256 {
+        self.target
+    }
+    fn get_target_method(&self) -> MethodType {
+        self.method.clone()
+    }
+}
 
 macro_rules! contract_data {
     ($($a:expr=>{read: $($rl:expr),*;write: $($wl:expr),*;calls: $($cl:expr),*;});*) => {{
@@ -61,6 +73,7 @@ macro_rules! transaction {
 #[test]
 fn full_test() {
     let mut builder = NetBuilder::new();
+    let rf = || {};
 
     builder.register_contract(
         u56!(10),
@@ -88,10 +101,10 @@ fn full_test() {
 
         },
     );
-    builder.new_transaction(&transaction!(10, 0));
-    builder.new_transaction(&transaction!(10, 0x43));
-    builder.new_transaction(&transaction!(10, 0x2347));
-    builder.new_transaction(&transaction!(10, 0x345));
+    builder.new_transaction(&transaction!(10, 0), Box::from(rf.clone()));
+    builder.new_transaction(&transaction!(10, 0x43), Box::from(rf.clone()));
+    builder.new_transaction(&transaction!(10, 0x2347), Box::from(rf.clone()));
+    builder.new_transaction(&transaction!(10, 0x345), Box::from(rf.clone()));
     builder.register_contract(
         u56!(15),
         contract_data! {
@@ -118,12 +131,8 @@ fn full_test() {
 
         },
     );
-    builder.new_transaction(&transaction!(15, 0));
-    builder.new_transaction(&transaction!(15, 0x57));
-    builder.new_transaction(&transaction!(10, 0x345));
-    builder.new_transaction(&transaction!(15, 0x96));
-
-
-
-
+    builder.new_transaction(&transaction!(15, 0), Box::from(rf.clone()));
+    builder.new_transaction(&transaction!(15, 0x57), Box::from(rf.clone()));
+    builder.new_transaction(&transaction!(10, 0x345), Box::from(rf.clone()));
+    builder.new_transaction(&transaction!(15, 0x96), Box::from(rf.clone()));
 }

@@ -7,6 +7,22 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "actualc2",
+            "cargo": {
+                "args": [
+                    "test"
+                ],
+                "filter": {
+                    "name": "contract-analysis",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in library 'contract-analysis'",
             "cargo": {
                 "args": [

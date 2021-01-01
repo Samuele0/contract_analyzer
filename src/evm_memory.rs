@@ -4,7 +4,7 @@ use std::fmt;
 
 #[derive(Debug, Clone)]
 pub struct EvmStack {
-    stack: Vec<StackValue>,
+    pub stack: Vec<StackValue>,
     deficit: usize,
     ///Callee values edited by this function
     calee_edits: Vec<(usize, StackValue)>,

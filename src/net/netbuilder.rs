@@ -52,6 +52,11 @@ impl NetBuilder {
         transaction_data: &dyn TransactionDataProvider,
         run: RunningFunction,
     ) {
+        /*println!(
+            "Analyzing transaction {} :: {:?}",
+            transaction_data.get_target_contract(),
+            transaction_data.get_target_method()
+        );*/
         // Retrive Transaction Informations
         let contract = transaction_data.get_target_contract();
         let method = transaction_data.get_target_method();
@@ -67,6 +72,7 @@ impl NetBuilder {
             trans.lock().unwrap().required_by(transaction.clone());
         }
         self.counter += 1;
+
         let mut methods_to_analyze = vec![(contract, method_data)];
         let mut methods_analyzed = vec![]; // Keep a list of analyzed methods to avoid cycles
         let mut constructor_analyzed = vec![]; // Keep a list of analyzed contracts to avoid cycles on contructors
@@ -81,8 +87,10 @@ impl NetBuilder {
         }
         while !methods_to_analyze.is_empty() {
             let method_data = methods_to_analyze.pop().unwrap();
+           //println!("Analyzing method {}", method_data.0);
             let contract_d = self.contracts.get_mut(&method_data.0).unwrap();
             if !constructor_analyzed.contains(&method_data.0) {
+               //println!("Adding constructor dependency");
                 contract_d
                     .contructor_transition
                     .as_ref()
@@ -150,6 +158,7 @@ impl NetBuilder {
         contract: &mut ContractStorage,
         transaction: &Arc<Mutex<Transaction>>,
     ) {
+       //println!("Analyzing method read accesses");
         for access in &method_data.storage_read {
             // TODO: Replace resolve
             let memory_address = access.value().resolve().unwrap();
@@ -166,7 +175,7 @@ impl NetBuilder {
             let read_location = map.entry(memory_address).or_insert_with(Vec::new);
             read_location.push(transaction.clone())
         }
-
+       //println!("Analyzing method write accesses");
         // Resolve dependencies for write access
         for access in &method_data.storage_write {
             // TODO: Replace resolve
@@ -208,7 +217,7 @@ impl NetBuilder {
             }
 
             // Add yourself to the reading list
-            let map = &mut contract.storage_read;
+            let map = &mut contract.storage_write;
             let read_location = map.entry(memory_address).or_insert_with(Vec::new);
             read_location.push(transaction.clone())
         }

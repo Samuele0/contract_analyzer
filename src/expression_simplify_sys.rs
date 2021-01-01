@@ -43,18 +43,26 @@ impl StackValue {
     unsafe fn form_z3(ast: Z3_ast, ctx: Z3_context, symbol_map: &Vec<StackValue>) -> StackValue {
         if Z3_is_app(ctx, ast) {
             let app = Z3_to_app(ctx, ast);
+
             let argn = Z3_get_app_num_args(ctx, app);
-            println!("args:{}", argn);
-            let mut buffer = Vec::with_capacity(argn as usize);
+            let stri0 = Z3_ast_to_string(ctx, ast);
+            let stri_rs0 = CStr::from_ptr(stri0).to_str().unwrap();
+
+            println!("Name : {} args:{}", stri_rs0, argn);
+            let pn = Z3_get_decl_num_parameters(ctx, Z3_get_app_decl(ctx, app));
+            println!("Decl params: {}", pn);
+
+            let mut buffer = Vec::with_capacity(argn as usize + pn as usize);
+            get_parameters(Z3_get_app_decl(ctx, app), pn, &mut buffer, ctx);
             for i in 0..argn {
                 buffer.push(Self::form_z3(Z3_get_app_arg(ctx, app, i), ctx, symbol_map));
             }
             let dec = Z3_get_app_decl(ctx, app);
             let kind = Z3_get_decl_kind(ctx, dec);
             println!("name: {:?}", kind);
-            let stri = Z3_ast_to_string(ctx, ast);
+            /*let stri = Z3_ast_to_string(ctx, ast);
             let stri_rs = CStr::from_ptr(stri).to_str().unwrap();
-            println!("to_string: {}", stri_rs);
+            println!("to_string: {}", stri_rs);*/
 
             if let DeclKind::UNINTERPRETED = kind {
                 let symbol = Z3_get_decl_name(ctx, dec);
@@ -62,10 +70,12 @@ impl StackValue {
                 println!("Found variable {}; map: {:?}", sv, symbol_map);
                 return symbol_map[sv as usize].clone();
             } else if let DeclKind::BNUM = kind {
-                println!("Parsing Number");
+                /*println!("Parsing Number");
                 let number = parse_z3_num(stri_rs);
-                println!("Number: {}", number);
-                return ActualValue(number);
+                println!("Number: {}", number);*/
+                println!("buffer: {:?}", buffer);
+
+                return Z3Number(Box::from(buffer[0].clone()), Box::from(buffer[1].clone()));
             } else {
                 return make_sv(kind, buffer);
             }
@@ -73,9 +83,36 @@ impl StackValue {
         Unknown
     }
 }
+unsafe fn get_parameters(
+    decl: Z3_func_decl,
+    par_n: u32,
+    buffer: &mut Vec<StackValue>,
+    ctx: Z3_context,
+) {
+    for i in 0..par_n {
+        let kind = Z3_get_decl_parameter_kind(ctx, decl, i);
+        match kind {
+            ParameterKind::Int => {
+                buffer.push(ActualValue(U256::from(Z3_get_decl_int_parameter(
+                    ctx, decl, i,
+                ))));
+            }
+            ParameterKind::Rational => {
+                let rp = Z3_get_decl_rational_parameter(ctx, decl, i);
+                let rp_rs = CStr::from_ptr(rp).to_str().unwrap();
+                println!("par number: {}", rp_rs);
+                buffer.push(ActualValue(U256::from(rp_rs)));
+            }
+            _ => panic!("unknown par type {:?}", kind),
+        }
+    }
+}
 fn make_sv(kind: DeclKind, buffer: Vec<StackValue>) -> StackValue {
+    println!("Found Operation {:?}, with buffer {:?}", kind, buffer);
     match kind {
         DeclKind::BAND => And(Box::from(buffer[0].clone()), Box::from(buffer[1].clone())),
+        DeclKind::CONCAT => Concat(buffer.clone()),
+        DeclKind::EXTRACT => Extract(Box::from(buffer[0].clone()),Box::from(buffer[1].clone()),Box::from(buffer[2].clone())),
         _ => Unknown,
     }
 }

@@ -21,7 +21,7 @@ pub trait TransactionDataProvider {
     fn get_target_contract(&self) -> U256;
     fn get_target_method(&self) -> MethodType;
 }
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub enum MethodType {
     Constructor,
     Method(U256),
@@ -46,11 +46,11 @@ impl Transaction {
         // Do not insert duplicate transictions
         for transaction in &self.dependencies {
             if transaction.lock().unwrap().id == id {
-                println!("Already a dependency");
+               //println!("Already a dependency");
                 return;
             }
         }
-        println!("Added");
+       //println!("Added");
         // Increase the dependency counter of the other transaction
         other.lock().unwrap().requires(1);
 

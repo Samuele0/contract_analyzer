@@ -1,6 +1,7 @@
 use crate::contract_data::{ContractData, ContractMethod};
 use crate::contract_utils::get_pubblic_method;
 //use crate::evm_execution::EvmExecution;
+use crate::contract_logger::{ContractLogger, NoLogger};
 use crate::cycle_resolution::CycleSolver;
 use crate::cycle_resolution::NocycleSolver;
 use crate::evm_function::{EvmFunction, FunctionRegistry};
@@ -16,24 +17,27 @@ pub fn analyze_contract_default(code: &[u8]) -> Option<ContractData> {
     analyze_contract(
         code,
         &NocycleSolver(),
-        &(multi_threded_function_analyzer as FunctionAnalyzer),
+        &(multi_threded_function_analyzer as FunctionAnalyzer<NoLogger>),
+        &mut NoLogger(),
     )
 }
 pub fn analyze_contract_single(code: &[u8]) -> Option<ContractData> {
     analyze_contract(
         code,
         &NocycleSolver(),
-        &(single_threded_function_analyzer as FunctionAnalyzer),
+        &(single_threded_function_analyzer as FunctionAnalyzer<NoLogger>),
+        &mut NoLogger(),
     )
 }
 
-pub fn analyze_contract(
+pub fn analyze_contract<L>(
     code: &[u8],
     cycle_solver: &dyn CycleSolver,
-    analyzer: &FunctionAnalyzer,
+    analyzer: &FunctionAnalyzer<L>,
+    logger: &mut L,
 ) -> Option<ContractData> {
     let functions = list_functions(code);
-    let registry = analyzer(code, &functions);
+    let registry = analyzer(code, &functions, logger);
     // Get storage access
     let start = &registry.analyzed[&0];
     let mut constructor = ContractMethod::new();
@@ -56,7 +60,7 @@ pub fn analyze_contract(
     if let Some(CodeSection(v)) = retv {
         let code = &v[..];
         let functions = list_functions(code);
-        let registry = analyzer(code, &functions);
+        let registry = analyzer(code, &functions, logger);
         let start = &registry.analyzed[&0];
         let mut temporary = ContractMethod::new();
         resolve_function_storage(
@@ -85,7 +89,7 @@ pub fn resolve_function_storage(
     call_stack: Vec<usize>,
 ) {
     //println!("RESOLVING NODE {} FOR STORAGE ACCESS", node.position);
-    //println!("TOP LEVEL METHOD FOUND?: {}", top_level_found);
+    // println!("TOP LEVEL METHOD FOUND?: {}", top_level_found);
     // Resolve read access
     for read_access in &node.storage_access_read {
         //println!("Resolving read access: {:?}", read_access);
@@ -131,18 +135,32 @@ pub fn resolve_function_storage(
         }
         //println!("\t Resolved address: {:?}", resolved);
         let address = resolved.resolve().unwrap();
-        if !cycle_solver.should_go(&call_stack, address.as_usize()) {
+        let new_node = &registry.analyzed[&address.as_usize()];
+
+        if !cycle_solver.should_go(
+            &call_stack,
+            address.as_usize(),
+            node.position,
+            registry,
+            &call.3,
+        ) {
             continue;
         }
-        let new_node = &registry.analyzed[&address.as_usize()];
         let mut new_vector = parent_data.clone();
         new_vector.push((&call.1, &call.2));
+
         let mut newstack = call_stack.clone();
         newstack.push(address.as_usize());
         // Check if we have found a top level method
         if !top_level_found {
             if let Some(c) = &call.3 {
-                if let Some(addr) = get_pubblic_method(c) {
+                let mut resolved = c.clone();
+                /*let pdata: Vec<&Vec<StackValue>> = parent_data.iter().map(|v| &v.0.stack).collect();
+                println!("parent_data: {:?}", pdata.last());*/
+                for parent in parent_data.iter().rev() {
+                    resolved = resolved.replace_parent_call(parent.0, parent.1);
+                }
+                if let Some(addr) = get_pubblic_method(&resolved,&parent_data) {
                     let mut method = ContractMethod::new();
                     method.access_read(contract_method.storage_read.clone());
                     method.access_write(contract_method.storage_write.clone());
@@ -173,6 +191,7 @@ pub fn resolve_function_storage(
             newstack,
         );
     }
+    //println!("END FUNCTION");
 }
 
 pub fn resolve_return_node(
