@@ -16,9 +16,9 @@ pub mod function_analyzer;
 pub mod net;
 pub use contract_analyzer::analyze_contract_default;
 pub use contract_data::ContractData;
+pub use net::net_executor::execute_net;
 pub use net::netbuilder::NetBuilder;
-pub use net::transaction::{ChainStateProvider, RunningFunction, TransactionDataProvider};
-
+pub use net::transaction::{ChainStateProvider, RunningFunction, TransactionDataProvider,MethodType};
 /*macro_rules! u56 {
     (a:$expr) => {
         U256::from(a);
