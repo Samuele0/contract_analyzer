@@ -1,88 +1,43 @@
 use crate::contract_data::{ContractData, ContractMethod};
 use crate::contract_utils::get_pubblic_method;
 //use crate::evm_execution::EvmExecution;
+use crate::contract_logger::{ContractLogger, NoLogger};
 use crate::cycle_resolution::CycleSolver;
 use crate::cycle_resolution::NocycleSolver;
 use crate::evm_function::{EvmFunction, FunctionRegistry};
 use crate::evm_memory::{EvmMemory, EvmStack};
 use crate::evm_types::{StackValue, StackValue::*};
+use crate::function_analyzer::{
+    multi_threded_function_analyzer, single_threded_function_analyzer, FunctionAnalyzer,
+};
 use ethereum_types::U256;
-
 use std::collections::HashMap;
-/*pub fn analyze_contract(code: &[u8]) -> ContractData {
-    let mut executions: VecDeque<EvmExecution<'_>> = VecDeque::new();
-    executions.push_back(EvmExecution::new(&code[..], 0));
-    let mut runtime_code: Option<Vec<u8>> = None;
-    let mut contract = ContractData::new();
 
-    while !executions.is_empty() {
-        let mut exe = executions.pop_front().unwrap();
-        exe.execute();
-        executions.append(&mut exe.execution_list);
-        // Check if the runtime code has been returned
-        if let Some((x, y)) = exe.return_value {
-            // If the execution has returned something
-            let memvalue = exe.memory.retrive(y, x);
-            if let Some(ret) = memvalue {
-                // If the returned value point to a valid memory value
-                if let CodeCopy(from, length) = ret {
-                    // If the returned value is a non solvable CodeCopy
-                    runtime_code = Some(Vec::from(
-                        &code[from.resolve().unwrap().as_usize()
-                            ..from.resolve().unwrap().as_usize()
-                                + length.resolve().unwrap().as_usize()],
-                    ));
-                    // Add information about the constructor
-                    let mut method = ContractMethod::new();
-                    method.access_read(exe.storage_access_read);
-                    method.access_write(exe.storage_access_write);
-                    contract.set_constructor(method);
-                } else if let CodeSection(x) = ret {
-                    // If the returned value is an effective section of code
-                    runtime_code = Some(x);
-                    let mut method = ContractMethod::new();
-                    // Add information about the constructor
-                    method.access_read(exe.storage_access_read);
-                    method.access_write(exe.storage_access_write);
-                    method.method_calls(exe.external_calls);
-                    contract.set_constructor(method);
-                }
-            }
-        }
-    }
-    // Analyze runtime code
-    if let Some(rcode) = runtime_code {
-        executions.push_back(EvmExecution::new(&rcode[..], 0));
-        while !executions.is_empty() {
-            let mut exe = executions.pop_front().unwrap();
-            exe.execute();
-            if let Some(hash) = get_pubblic_method(&exe) {
-                // If this execution belongs to a method
-                // Retrive or create the method and append information
-                let method = contract.get_method(hash);
-                method.access_read(exe.storage_access_read);
-                method.access_write(exe.storage_access_write);
-                method.method_calls(exe.external_calls);
-            }
-            executions.append(&mut exe.execution_list);
-        }
-    }
-    // Display the contract
-    contract.display();
-    contract
-}*/
+pub fn analyze_contract_default(code: &[u8]) -> Option<ContractData> {
+    analyze_contract(
+        code,
+        &NocycleSolver(),
+        &(multi_threded_function_analyzer as FunctionAnalyzer<NoLogger>),
+        &mut NoLogger(),
+    )
+}
+pub fn analyze_contract_single(code: &[u8]) -> Option<ContractData> {
+    analyze_contract(
+        code,
+        &NocycleSolver(),
+        &(single_threded_function_analyzer as FunctionAnalyzer<NoLogger>),
+        &mut NoLogger(),
+    )
+}
 
-pub fn analyze_contract(code: &[u8]) -> Option<ContractData> {
-    let mut registry = FunctionRegistry::new();
-    let mut cycle_solver = NocycleSolver();
+pub fn analyze_contract<L>(
+    code: &[u8],
+    cycle_solver: &dyn CycleSolver,
+    analyzer: &FunctionAnalyzer<L>,
+    logger: &mut L,
+) -> Option<ContractData> {
     let functions = list_functions(code);
-    for f_loc in functions {
-        //println!("ANALYZING FUNCTION {}", f_loc);
-        let mut evm_func = EvmFunction::new(f_loc, code);
-        evm_func.execute(&mut cycle_solver);
-        //println!("Function calls: {:?}", evm_func.internal_calls);
-        registry.analyzed.insert(f_loc, evm_func);
-    }
+    let registry = analyzer(code, &functions, logger);
     // Get storage access
     let start = &registry.analyzed[&0];
     let mut constructor = ContractMethod::new();
@@ -94,7 +49,7 @@ pub fn analyze_contract(code: &[u8]) -> Option<ContractData> {
         Vec::new(),
         &mut constructor,
         false,
-        &cycle_solver,
+        cycle_solver,
         &mut storage,
         vec![0],
     );
@@ -103,17 +58,9 @@ pub fn analyze_contract(code: &[u8]) -> Option<ContractData> {
     let retv = resolve_return_node(start, &registry, Vec::new());
     //println!("{:?}", retv);
     if let Some(CodeSection(v)) = retv {
-        registry = FunctionRegistry::new();
         let code = &v[..];
         let functions = list_functions(code);
-        for f_loc in functions {
-            //println!("ANALYZING FUNCTION {}", f_loc);
-            let mut evm_func = EvmFunction::new(f_loc, code);
-            evm_func.execute(&mut cycle_solver);
-            //println!("Function details: {:?}", evm_func);
-
-            registry.analyzed.insert(f_loc, evm_func);
-        }
+        let registry = analyzer(code, &functions, logger);
         let start = &registry.analyzed[&0];
         let mut temporary = ContractMethod::new();
         resolve_function_storage(
@@ -122,7 +69,7 @@ pub fn analyze_contract(code: &[u8]) -> Option<ContractData> {
             Vec::new(),
             &mut temporary,
             false,
-            &cycle_solver,
+            cycle_solver,
             &mut storage,
             vec![0],
         );
@@ -142,7 +89,7 @@ pub fn resolve_function_storage(
     call_stack: Vec<usize>,
 ) {
     //println!("RESOLVING NODE {} FOR STORAGE ACCESS", node.position);
-    //println!("TOP LEVEL METHOD FOUND?: {}", top_level_found);
+    // println!("TOP LEVEL METHOD FOUND?: {}", top_level_found);
     // Resolve read access
     for read_access in &node.storage_access_read {
         //println!("Resolving read access: {:?}", read_access);
@@ -188,18 +135,32 @@ pub fn resolve_function_storage(
         }
         //println!("\t Resolved address: {:?}", resolved);
         let address = resolved.resolve().unwrap();
-        if !cycle_solver.should_go(&call_stack, address.as_usize()) {
+        let new_node = &registry.analyzed[&address.as_usize()];
+
+        if !cycle_solver.should_go(
+            &call_stack,
+            address.as_usize(),
+            node.position,
+            registry,
+            &call.3,
+        ) {
             continue;
         }
-        let new_node = &registry.analyzed[&address.as_usize()];
         let mut new_vector = parent_data.clone();
         new_vector.push((&call.1, &call.2));
+
         let mut newstack = call_stack.clone();
         newstack.push(address.as_usize());
         // Check if we have found a top level method
         if !top_level_found {
             if let Some(c) = &call.3 {
-                if let Some(addr) = get_pubblic_method(c) {
+                let mut resolved = c.clone();
+                /*let pdata: Vec<&Vec<StackValue>> = parent_data.iter().map(|v| &v.0.stack).collect();
+                println!("parent_data: {:?}", pdata.last());*/
+                for parent in parent_data.iter().rev() {
+                    resolved = resolved.replace_parent_call(parent.0, parent.1);
+                }
+                if let Some(addr) = get_pubblic_method(&resolved,&parent_data) {
                     let mut method = ContractMethod::new();
                     method.access_read(contract_method.storage_read.clone());
                     method.access_write(contract_method.storage_write.clone());
@@ -230,6 +191,7 @@ pub fn resolve_function_storage(
             newstack,
         );
     }
+    //println!("END FUNCTION");
 }
 
 pub fn resolve_return_node(

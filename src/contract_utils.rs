@@ -26,9 +26,14 @@ impl DataType {
 }
 
 /// Return the root public method which this execution belongs to;
-pub fn get_pubblic_method(guard: &StackValue) -> Option<U256> {
+pub fn get_pubblic_method(
+    guard: &StackValue,
+    stack: &Vec<(&crate::evm_memory::EvmStack, &crate::evm_memory::EvmMemory)>,
+) -> Option<U256> {
     if let EQ(a, b) = guard {
         // Method guards allways start with eq
+        //println!("looking for calldata in {:?}", guard);
+        //println!("{:?}", stack.last().unwrap().0);
         if let ActualValue(x) = **a {
             let hash = x;
             if look_for_calldata(&*b) {
@@ -64,6 +69,7 @@ pub fn look_for_calldata(val: &StackValue) -> bool {
         Div(a, b) => look_for_calldata(&**a) || look_for_calldata(&**b),
         Shr(a, b) => look_for_calldata(&**a) || look_for_calldata(&**b),
         ShL(a, b) => look_for_calldata(&**a) || look_for_calldata(&**b),
+        GT(a, b) => look_for_calldata(&**a) || look_for_calldata(&**b),
         _ => false,
     }
 }
@@ -94,9 +100,12 @@ pub fn top_level_data(expr: &StackValue) -> DataType {
             if v.len() == 2 {
                 // Mapping
                 if v[0].0 > v[1].0 {
-                    DataType::Mapping(v[0].1.clone(), expr.clone())
+                    let resolved = top_level_data(&v[0].1);
+                    DataType::Mapping(resolved.value(), expr.clone())
                 } else {
-                    DataType::Mapping(v[1].1.clone(), expr.clone())
+                    let resolved = top_level_data(&v[1].1);
+
+                    DataType::Mapping(resolved.value(), expr.clone())
                 }
             } else {
                 DataType::Unknown(expr.clone())

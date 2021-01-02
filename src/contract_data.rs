@@ -2,11 +2,12 @@ use crate::contract_utils::DataType;
 use crate::evm_types::StackValue;
 use ethereum_types::U256;
 use std::collections::{HashMap, HashSet};
-
+#[derive(Clone)]
 pub struct ContractData {
     pub constructor: ContractMethod,
     pub methods: HashMap<U256, ContractMethod>,
 }
+#[derive(Clone)]
 pub struct ContractMethod {
     pub storage_read: HashSet<DataType>,
     pub storage_write: HashSet<DataType>,

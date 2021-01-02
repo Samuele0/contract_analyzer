@@ -104,6 +104,10 @@ pub enum StackValue {
     /// Placeholder for stack value caming from function callee
     StackPaceHolder(usize),
     MemoryPlaceHolder(Box<StackValue>, Box<StackValue>),
+    // Expanded operations from z3
+    Concat(Vec<StackValue>),
+    Extract(Box<StackValue>, Box<StackValue>, Box<StackValue>),
+    Z3Number(Box<StackValue>, Box<StackValue>),
 }
 
 impl StackValue {
@@ -139,6 +143,14 @@ impl StackValue {
                 if let Some(x) = b.resolve() {
                     if let Some(y) = a.resolve() {
                         return Some(x & y);
+                    }
+                }
+                None
+            }
+            StackValue::Or(a, b) => {
+                if let Some(x) = b.resolve() {
+                    if let Some(y) = a.resolve() {
+                        return Some(x | y);
                     }
                 }
                 None
@@ -189,6 +201,18 @@ impl StackValue {
             StackValue::CallDataLoad(v) => StackValue::CallDataLoad(Box::from(
                 v.replace_parent_call(extended_stack, extended_memory),
             )),
+            StackValue::EQ(a, b) => StackValue::EQ(
+                Box::from(a.replace_parent_call(extended_stack, extended_memory)),
+                Box::from(b.replace_parent_call(extended_stack, extended_memory)),
+            ),
+            StackValue::And(a, b) => StackValue::And(
+                Box::from(a.replace_parent_call(extended_stack, extended_memory)),
+                Box::from(b.replace_parent_call(extended_stack, extended_memory)),
+            ),
+            StackValue::ShL(a, b) => StackValue::ShL(
+                Box::from(a.replace_parent_call(extended_stack, extended_memory)),
+                Box::from(b.replace_parent_call(extended_stack, extended_memory)),
+            ),
             _ => self.clone(),
         }
     }
