@@ -9,7 +9,7 @@ pub type RunningFunction = Box<dyn Fn() -> () + Send + Sync>;
 pub trait ChainStateProvider {}
 
 pub struct Transaction {
-    dependencies: Vec<Arc<Mutex<Transaction>>>,
+    pub dependencies: Vec<Arc<Mutex<Transaction>>>,
     pub count: Mutex<usize>,
     pub id: usize,
     runner: RunningFunction,
