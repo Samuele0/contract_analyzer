@@ -1,4 +1,4 @@
-# Contract Analyzer
+# EthCA: Ethereum Concurrency Analyzer
 
 This library provides the tools to concurrently execute Ethereum transactions. In particular this library provides three functionalities:
 
