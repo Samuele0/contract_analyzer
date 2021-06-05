@@ -7,7 +7,7 @@ This library provides the tools to concurrently execute Ethereum transactions. I
 -   Executing the said dependency net.
 
 The details of the design and the implementation of the library are described in 
-> Samuele Tosi. [A Library for the concurrent execution of Ethereum blocks](https://sol.unifi.it/tesi/consultazione). Master's Thesis. University of Florence, 2021.
+> Samuele Tosi. A Library for the concurrent execution of Ethereum blocks. Master's Thesis. University of Florence, 2021.
  
 
 ## Usage
