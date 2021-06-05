@@ -187,11 +187,11 @@ impl NetBuilder {
                 for trans in list {
                     let id1 = trans.lock().unwrap().id;
                     if id1 != transaction.lock().unwrap().id {
-                        println!(
+                        /* println!(
                             "Adding dependency: ({})=>({})",
                             id1,
                             transaction.lock().unwrap().id
-                        );
+                        ); */
                         // Add these transactions as dependencies
                         trans.lock().unwrap().required_by(transaction.clone());
                     }
@@ -204,11 +204,11 @@ impl NetBuilder {
                 for trans in list {
                     let id1 = trans.lock().unwrap().id;
                     if id1 != transaction.lock().unwrap().id {
-                        println!(
+                        /* println!(
                             "Adding dependency: ({})=>({})",
                             id1,
                             transaction.lock().unwrap().id
-                        );
+                        ); */
 
                         // Add these transactions as dependencies
                         trans.lock().unwrap().required_by(transaction.clone());
